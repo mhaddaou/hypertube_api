@@ -1,0 +1,88 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  // Unique identifier — UUID generated automatically
+  id             String   @id @default(uuid())
+
+  // User's email address — must be unique across all accounts
+  email          String   @unique
+
+  // Public display name — must be unique, used for local login
+  username       String   @unique
+
+  // User's real first name (shown on profile)
+  firstName      String
+
+  // User's real last name (shown on profile)
+  lastName       String
+
+  // bcrypt hash of the user's password — null for users who registered via OAuth (42 / Google)
+  passwordHash   String?
+
+  // URL of the user's profile picture (external URL or local upload path)
+  profilePicture String?
+
+  // User's preferred UI language — defaults to English
+  language       String   @default("en")
+
+  // bcrypt hash of the current refresh token — set to null when the user logs out
+  refreshToken   String?
+
+  // bcrypt hash of the one-time password-reset token sent by email
+  resetTokenHash String?
+
+  // Expiry timestamp of the reset token — token is rejected after this date
+  resetTokenExp  DateTime?
+
+  // OAuth provider accounts linked to this user (42, Google, etc.)
+  oauthAccounts  OAuthAccount[]
+
+  // Timestamp of account creation
+  createdAt      DateTime @default(now())
+
+  // Timestamp of last profile update
+  updatedAt      DateTime @updatedAt
+}
+
+model OAuthAccount {
+  // Unique identifier
+  id         String @id @default(uuid())
+
+  // Name of the OAuth provider: "42" or "google"
+  provider   String
+
+  // The user's unique ID returned by the provider (e.g. 42 intra UID)
+  providerId String
+
+  // Foreign key linking this account to a User row
+  userId     String
+
+  // Cascade delete: if the User is deleted, their OAuth accounts are removed too
+  user       User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // A user cannot have two accounts from the same provider
+  @@unique([provider, providerId])
+}
+
+model OAuthClient {
+  // Unique identifier
+  id           String   @id @default(uuid())
+
+  // Public client identifier sent with every token request
+  clientId     String   @unique
+
+  // bcrypt hash of the client secret — never stored in plain text
+  clientSecret String
+
+  // Human-readable name for this client (e.g. "Hypertube Frontend")
+  name         String
+
+  // Timestamp of client registration
+  createdAt    DateTime @default(now())
+}

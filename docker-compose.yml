@@ -1,0 +1,25 @@
+# Prisma/PostgreSQL local database.
+# Matching .env DATABASE_URL:
+# postgresql://hypertube:hypertube@localhost:5432/hypertube
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: hypertube_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-hypertube}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hypertube}
+      POSTGRES_DB: ${POSTGRES_DB:-hypertube}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - hypertube_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  hypertube_postgres_data:
