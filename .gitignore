@@ -3,6 +3,9 @@
 /node_modules
 /build
 
+# user-uploaded files
+/uploads
+
 # Logs
 logs
 *.log
@@ -41,6 +44,10 @@ lerna-debug.log*
 .env.test.local
 .env.production.local
 .env.local
+
+# OAuth credentials / debug dumps
+0authgoogle.json
+42-profile.json
 
 # temp directory
 .temp

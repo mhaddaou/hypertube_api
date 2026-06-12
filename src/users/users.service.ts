@@ -58,8 +58,8 @@ export class UsersService {
     }
 
     if (dto.email && dto.email !== existing.email) {
-      const taken = await this.prisma.user.findUnique({
-        where: { email: dto.email },
+      const taken = await this.prisma.user.findFirst({
+        where: { email: dto.email, isOauth: false },
       });
       if (taken) throw new ConflictException('Email already in use');
     }
@@ -71,6 +71,34 @@ export class UsersService {
     }
 
     const updated = await this.prisma.user.update({ where: { id }, data });
+
+    return {
+      id: updated.id,
+      username: updated.username,
+      email: updated.email,
+      firstName: updated.firstName,
+      lastName: updated.lastName,
+      profilePicture: updated.profilePicture,
+      language: updated.language,
+    };
+  }
+
+  async updateAvatar(
+    id: string,
+    requesterId: string,
+    profilePicture: string,
+  ): Promise<UserOwnProfileDto> {
+    if (id !== requesterId) {
+      throw new ForbiddenException('You can only update your own profile');
+    }
+
+    const existing = await this.prisma.user.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('User not found');
+
+    const updated = await this.prisma.user.update({
+      where: { id },
+      data: { profilePicture },
+    });
 
     return {
       id: updated.id,

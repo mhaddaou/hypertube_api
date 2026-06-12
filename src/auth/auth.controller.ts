@@ -20,6 +20,7 @@ import { OAuthTokenDto } from './dto/oauth-token.dto.js';
 import { RefreshDto } from './dto/refresh.dto.js';
 import { RegisterDto } from './dto/register.dto.js';
 import { ResetPasswordDto } from './dto/reset-password.dto.js';
+import { DiscordAuthGuard } from './guards/discord-auth.guard.js';
 import { FtAuthGuard } from './guards/ft-auth.guard.js';
 import { GoogleAuthGuard } from './guards/google-auth.guard.js';
 import { JwtAuthGuard } from './guards/jwt-auth.guard.js';
@@ -113,6 +114,18 @@ export class AuthController {
   @UseGuards(GoogleAuthGuard)
   @ApiOperation({ summary: 'Handle Google OAuth callback' })
   async callbackGoogle(@Request() req: OAuthAuthRequest, @Res() res: Response) {
+    return this.redirectWithTokens(req.user, res);
+  }
+
+  @Get('discord')
+  @UseGuards(DiscordAuthGuard)
+  @ApiOperation({ summary: 'Start Discord OAuth login' })
+  loginWithDiscord() {}
+
+  @Get('discord/callback')
+  @UseGuards(DiscordAuthGuard)
+  @ApiOperation({ summary: 'Handle Discord OAuth callback' })
+  async callbackDiscord(@Request() req: OAuthAuthRequest, @Res() res: Response) {
     return this.redirectWithTokens(req.user, res);
   }
 
