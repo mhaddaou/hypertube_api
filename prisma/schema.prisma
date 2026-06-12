@@ -10,8 +10,13 @@ model User {
   // Unique identifier — UUID generated automatically
   id             String   @id @default(uuid())
 
-  // User's email address — must be unique across all accounts
-  email          String   @unique
+  // User's email address — unique only for local (non-OAuth) users.
+  // Uniqueness for local users is enforced by a partial unique index defined in migrations.
+  email          String
+
+  // True if this account was created through an OAuth provider (Discord, Google, 42).
+  // OAuth users may share an email; local users must have a unique email.
+  isOauth        Boolean  @default(false)
 
   // Public display name — must be unique, used for local login
   username       String   @unique

@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -63,9 +64,11 @@ export class AuthService {
     private readonly mailService: MailService,
   ) {}
 
+  private readonly logger = new Logger(AuthService.name);
+
   async register(dto: RegisterDto) {
-    const existingEmail = await this.prisma.user.findUnique({
-      where: { email: dto.email },
+    const existingEmail = await this.prisma.user.findFirst({
+      where: { email: dto.email, isOauth: false },
     });
     if (existingEmail) throw new ConflictException('Email already in use');
 
@@ -83,6 +86,7 @@ export class AuthService {
         firstName: dto.firstName,
         lastName: dto.lastName,
         passwordHash,
+        isOauth: false,
       },
       select: {
         id: true,
@@ -98,7 +102,12 @@ export class AuthService {
   }
 
   async validateLocalUser(username: string, password: string) {
-    const user = await this.prisma.user.findUnique({ where: { username } });
+    const isEmail = username.includes('@');
+    const user = isEmail
+      ? await this.prisma.user.findFirst({
+          where: { email: username, isOauth: false },
+        })
+      : await this.prisma.user.findUnique({ where: { username } });
     if (!user) return null;
 
     if (!user.passwordHash) {
@@ -147,7 +156,14 @@ export class AuthService {
   }
 
   async handleOAuthLogin(provider: string, profile: OAuthProfile) {
+    this.logger.debug(
+      `handleOAuthLogin(${provider}) profile: ${JSON.stringify(profile)}`,
+    );
+
     if (!profile.id || !profile.email) {
+      this.logger.warn(
+        `OAuth profile missing id/email — provider=${provider} id=${profile.id} email=${profile.email}`,
+      );
       throw new UnauthorizedException(
         'OAuth provider did not return a usable profile',
       );
@@ -159,7 +175,9 @@ export class AuthService {
     });
 
     if (existing) {
-      // Update profilePicture if it was missing on first login
+      this.logger.debug(
+        `Existing OAuth account found for ${provider}:${profile.id} → user ${existing.user.id} (${existing.user.email})`,
+      );
       if (!existing.user.profilePicture && profile.profilePicture) {
         await this.prisma.user.update({
           where: { id: existing.user.id },
@@ -170,26 +188,26 @@ export class AuthService {
       return existing.user;
     }
 
-    // Link to existing user by email if found
-    let user = await this.prisma.user.findUnique({
-      where: { email: profile.email },
+    // OAuth users are always created as a separate User row, even if their email
+    // matches an existing local or OAuth account. The partial unique index in
+    // the DB allows duplicate emails only when isOauth = true.
+    this.logger.debug(
+      `Creating new OAuth user for ${provider}:${profile.id} (email=${profile.email})`,
+    );
+    const username = await this.createUniqueUsername(
+      profile.username || profile.email.split('@')[0],
+    );
+
+    const user = await this.prisma.user.create({
+      data: {
+        email: profile.email,
+        username,
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+        profilePicture: profile.profilePicture,
+        isOauth: true,
+      },
     });
-
-    if (!user) {
-      const username = await this.createUniqueUsername(
-        profile.username || profile.email.split('@')[0],
-      );
-
-      user = await this.prisma.user.create({
-        data: {
-          email: profile.email,
-          username,
-          firstName: profile.firstName,
-          lastName: profile.lastName,
-          profilePicture: profile.profilePicture,
-        },
-      });
-    }
 
     await this.prisma.oAuthAccount.create({
       data: { provider, providerId: profile.id, userId: user.id },
@@ -199,7 +217,9 @@ export class AuthService {
   }
 
   async forgotPassword(email: string) {
-    const user = await this.prisma.user.findUnique({ where: { email } });
+    const user = await this.prisma.user.findFirst({
+      where: { email, isOauth: false },
+    });
     // Always respond 200 to avoid email enumeration
     if (!user) return;
 

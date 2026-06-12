@@ -7,6 +7,7 @@ import { PrismaModule } from '../prisma/prisma.module.js';
 import { AuthController, OAuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { OAuthClientGuard } from './guards/oauth-client.guard.js';
+import { DiscordStrategy } from './strategies/discord.strategy.js';
 import { FtStrategy } from './strategies/ft.strategy.js';
 import { GoogleStrategy } from './strategies/google.strategy.js';
 import { JwtStrategy } from './strategies/jwt.strategy.js';
@@ -47,6 +48,7 @@ type JwtExpiresIn =
     JwtStrategy,
     FtStrategy,
     GoogleStrategy,
+    DiscordStrategy,
     OAuthClientGuard,
   ],
   exports: [AuthService],
