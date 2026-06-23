@@ -46,6 +46,17 @@ export class MoviesService {
     const movie = await this.ytsService.getMovieDetails(movieId);
     const omdb = await this.omdbService.getByImdbId(movie.imdb_code);
     const year = movie.year ?? parseYear(omdb?.Year);
+    const omdbPoster = parseOmdbText(omdb?.Poster);
+    const image =
+      movie.medium_cover_image ??
+      movie.large_cover_image ??
+      movie.small_cover_image ??
+      omdbPoster;
+    const coverImage =
+      movie.large_cover_image ??
+      movie.medium_cover_image ??
+      movie.small_cover_image ??
+      omdbPoster;
     const availability = await this.justWatchService.getAvailability(movie.title, year);
     const cacheStatus = await this.streamingService.getCacheStatus(movieId);
 
@@ -71,8 +82,8 @@ export class MoviesService {
       production: parseOmdbText(omdb?.Production),
       box_office: parseOmdbText(omdb?.BoxOffice),
       subtitles: normalizeSubtitles(movie.subtitles),
-      image: movie.medium_cover_image ?? movie.large_cover_image ?? movie.small_cover_image ?? null,
-      cover_image: movie.large_cover_image ?? movie.medium_cover_image ?? movie.small_cover_image ?? null,
+      image: image ?? null,
+      cover_image: coverImage ?? null,
       cache_status: cacheStatus,
       sources: ['yts', 'omdb', 'justwatch'],
       availability,

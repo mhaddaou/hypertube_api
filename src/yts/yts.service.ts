@@ -53,7 +53,7 @@ export class YtsService {
       const response = await this.client.get<YtsMovieDetailsResponse>(
         '/movie_details.json',
         {
-          params: { movie_id: movieId },
+          params: { movie_id: movieId, with_images: true },
         },
       );
       if (response.data?.status !== 'ok') {

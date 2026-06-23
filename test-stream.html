@@ -472,6 +472,45 @@
         subtitleTrack.mode = 'showing';
       }
 
+      function getMovieImage(...movies) {
+        for (const movie of movies) {
+          if (!movie) {
+            continue;
+          }
+          const image = movie.image || movie.cover_image || movie.backdrop;
+          if (image) {
+            return image;
+          }
+        }
+        return '';
+      }
+
+      function mergeMovieDetail(detail, fallback) {
+        const merged = {
+          ...(fallback || {}),
+          ...(detail || {}),
+        };
+        const image = getMovieImage(detail, fallback);
+        if (image) {
+          merged.image = image;
+        }
+        merged.cover_image =
+          detail?.cover_image ||
+          fallback?.cover_image ||
+          detail?.backdrop ||
+          fallback?.backdrop ||
+          image ||
+          null;
+        merged.backdrop =
+          detail?.backdrop ||
+          fallback?.backdrop ||
+          detail?.cover_image ||
+          fallback?.cover_image ||
+          image ||
+          null;
+        return merged;
+      }
+
       loadBtn.addEventListener('click', () => {
         playMovie(movieIdInput.value.trim());
       });
@@ -496,9 +535,10 @@
         suggestionDetail.hidden = false;
         suggestions.hidden = true;
 
-        const poster = detail?.image || 'https://via.placeholder.com/140x210?text=No+Image';
-        const backdrop = detail?.image
-          ? `linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.9)), url("${detail.image}")`
+        const poster = getMovieImage(detail) || 'https://via.placeholder.com/140x210?text=No+Image';
+        const backdropImage = detail?.backdrop || detail?.cover_image || poster;
+        const backdrop = backdropImage
+          ? `linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.9)), url("${backdropImage}")`
           : 'linear-gradient(180deg, #111827, #1f2937)';
         suggestionDetail.style.backgroundImage = backdrop;
 
@@ -549,28 +589,29 @@
 
         detailResponses.forEach((detail, index) => {
           const baseMovie = selected[index];
+          const displayMovie = mergeMovieDetail(detail, baseMovie);
           const item = document.createElement('li');
           const card = document.createElement('div');
           card.className = 'suggestion-card';
 
           const img = document.createElement('img');
-          img.alt = detail?.name || baseMovie.name || 'Movie cover';
-          img.src = detail?.image || 'https://via.placeholder.com/80x120?text=No+Image';
+          img.alt = displayMovie?.name || 'Movie cover';
+          img.src = getMovieImage(displayMovie) || 'https://via.placeholder.com/80x120?text=No+Image';
 
           const meta = document.createElement('div');
           meta.className = 'suggestion-meta';
 
           const title = document.createElement('div');
           title.className = 'suggestion-title';
-          title.textContent = detail?.name || baseMovie.name;
+          title.textContent = displayMovie?.name || 'Unknown Title';
 
           const info = document.createElement('div');
-          const imdb = formatRatingValue(detail?.imdb_rating);
-          const year = formatYearValue(detail?.year);
-          info.textContent = `ID: ${detail?.id || baseMovie.id} | IMDb: ${imdb} | Year: ${year}`;
+          const imdb = formatRatingValue(displayMovie?.imdb_rating ?? displayMovie?.rating);
+          const year = formatYearValue(displayMovie?.year);
+          info.textContent = `ID: ${displayMovie?.id || baseMovie.id} | IMDb: ${imdb} | Year: ${year}`;
 
           const sourceLine = document.createElement('div');
-          sourceLine.textContent = `Source: ${formatSources(detail?.sources || baseMovie.sources, baseMovie.provider)}`;
+          sourceLine.textContent = `Source: ${formatSources(displayMovie?.sources || baseMovie.sources, baseMovie.provider)}`;
 
           const actions = document.createElement('div');
           actions.className = 'suggestion-actions';
@@ -579,7 +620,7 @@
           button.className = 'suggestion-btn';
           button.textContent = 'Open';
           button.addEventListener('click', () => {
-            showSuggestionDetail(detail || baseMovie);
+            showSuggestionDetail(displayMovie);
           });
           actions.appendChild(button);
 
@@ -809,7 +850,7 @@
 
           const img = document.createElement('img');
           img.alt = baseMovie?.name || 'Movie cover';
-          img.src = baseMovie?.image || 'https://via.placeholder.com/60x90?text=No+Image';
+          img.src = getMovieImage(baseMovie) || 'https://via.placeholder.com/60x90?text=No+Image';
 
           const meta = document.createElement('div');
           meta.className = 'search-meta';
