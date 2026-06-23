@@ -119,6 +119,15 @@
       .suggestion-btn:hover {
         background: #1e40af;
       }
+      .suggestions-footer {
+        display: flex;
+        justify-content: center;
+        margin-top: 12px;
+      }
+      .suggestions-more-btn:disabled {
+        cursor: wait;
+        opacity: 0.7;
+      }
       .detail-view {
         margin: 12px 0 16px;
         border-radius: 10px;
@@ -308,6 +317,11 @@
       <div class="suggestions" id="suggestions" hidden>
         <strong>Suggestions</strong>
         <ul class="suggestions-list" id="suggestionsList"></ul>
+        <div class="suggestions-footer" id="suggestionsFooter" hidden>
+          <button class="suggestions-more-btn" id="loadMoreSuggestionsBtn" type="button">
+            Show more
+          </button>
+        </div>
       </div>
       <section class="detail-view" id="suggestionDetail" hidden>
         <div class="detail-overlay">
@@ -411,6 +425,8 @@
       const suggestBtn = document.getElementById('suggestBtn');
       const suggestions = document.getElementById('suggestions');
       const suggestionsList = document.getElementById('suggestionsList');
+      const suggestionsFooter = document.getElementById('suggestionsFooter');
+      const loadMoreSuggestionsBtn = document.getElementById('loadMoreSuggestionsBtn');
       const suggestionDetail = document.getElementById('suggestionDetail');
       const backToSuggestions = document.getElementById('backToSuggestions');
       const detailPoster = document.getElementById('detailPoster');
@@ -439,6 +455,9 @@
       const nowPlayingBoxOffice = document.getElementById('nowPlayingBoxOffice');
       const nowPlayingCache = document.getElementById('nowPlayingCache');
       const nowPlayingPlot = document.getElementById('nowPlayingPlot');
+      const suggestionPageSize = 6;
+      let suggestionMovies = [];
+      let suggestionCursor = 0;
       let cacheStatusTimer = null;
 
       function buildUrl() {
@@ -565,18 +584,25 @@
         suggestions.hidden = false;
       }
 
-      async function loadSuggestions() {
-        suggestionsList.innerHTML = '';
-        suggestions.hidden = false;
-        suggestionDetail.hidden = true;
-        const response = await fetch('http://localhost:3000/movies');
-        if (!response.ok) {
-          suggestionsList.innerHTML = '<li>Failed to load suggestions.</li>';
+      function updateSuggestionsFooter(isLoading = false) {
+        const hasMore = suggestionCursor < suggestionMovies.length;
+        suggestionsFooter.hidden = !isLoading && !hasMore;
+        loadMoreSuggestionsBtn.disabled = isLoading || !hasMore;
+        loadMoreSuggestionsBtn.textContent = isLoading ? 'Loading...' : 'Show more';
+      }
+
+      async function appendSuggestionBatch() {
+        const selected = suggestionMovies.slice(
+          suggestionCursor,
+          suggestionCursor + suggestionPageSize,
+        );
+        if (!selected.length) {
+          updateSuggestionsFooter();
           return;
         }
-        const movies = await response.json();
-        const selected = movies.slice(0, 6);
 
+        suggestionCursor += selected.length;
+        updateSuggestionsFooter(true);
         const detailResponses = await Promise.all(
           selected.map((movie) =>
             fetch(`http://localhost:3000/movies/${encodeURIComponent(movie.id)}`)
@@ -634,12 +660,53 @@
           item.appendChild(card);
           suggestionsList.appendChild(item);
         });
+
+        updateSuggestionsFooter();
+      }
+
+      async function loadSuggestions() {
+        suggestionsList.innerHTML = '';
+        suggestions.hidden = false;
+        suggestionDetail.hidden = true;
+        suggestionMovies = [];
+        suggestionCursor = 0;
+        updateSuggestionsFooter(true);
+
+        const response = await fetch('http://localhost:3000/movies');
+        if (!response.ok) {
+          suggestionsList.innerHTML = '<li>Failed to load suggestions.</li>';
+          suggestionMovies = [];
+          suggestionCursor = 0;
+          updateSuggestionsFooter();
+          return;
+        }
+
+        const movies = await response.json();
+        suggestionMovies = Array.isArray(movies) ? movies : [];
+        suggestionCursor = 0;
+
+        if (!suggestionMovies.length) {
+          suggestionsList.innerHTML = '<li>No suggestions found.</li>';
+          updateSuggestionsFooter();
+          return;
+        }
+
+        await appendSuggestionBatch();
       }
 
       suggestBtn.addEventListener('click', () => {
         loadSuggestions().catch(() => {
           suggestions.hidden = false;
           suggestionsList.innerHTML = '<li>Failed to load suggestions.</li>';
+          suggestionMovies = [];
+          suggestionCursor = 0;
+          updateSuggestionsFooter();
+        });
+      });
+
+      loadMoreSuggestionsBtn.addEventListener('click', () => {
+        appendSuggestionBatch().catch(() => {
+          updateSuggestionsFooter();
         });
       });
 
