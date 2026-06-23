@@ -367,7 +367,16 @@ export class StreamingService {
     };
 
     const checkCompletion = () => {
-      if (isTorrentFileComplete(file) || (torrent as unknown as { done?: boolean }).done) {
+      const torrentDone = Boolean((torrent as unknown as { done?: boolean }).done);
+      let fileComplete = false;
+      try {
+        fileComplete = isTorrentFileComplete(file);
+      } catch {
+        // webtorrent's piece bitmask can be transiently null mid-download;
+        // fall back to the torrent-level done flag instead of crashing.
+      }
+
+      if (fileComplete || torrentDone) {
         torrent.removeListener('download', checkCompletion);
         torrent.removeListener('done', checkCompletion);
         void saveEntry();

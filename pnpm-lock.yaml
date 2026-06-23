@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  webtorrent@3.0.16:
+    hash: d98b104d1dd07b8bd7b2ff36b25d1cbb935eb8da7613b7e140b1640b5c905a90
+    path: patches/webtorrent@3.0.16.patch
+
 importers:
 
   .:
@@ -100,7 +105,7 @@ importers:
         version: 14.0.0
       webtorrent:
         specifier: ^3.0.16
-        version: 3.0.16(bare-url@2.4.5)
+        version: 3.0.16(patch_hash=d98b104d1dd07b8bd7b2ff36b25d1cbb935eb8da7613b7e140b1640b5c905a90)(bare-url@2.4.5)
     devDependencies:
       '@eslint/eslintrc':
         specifier: ^3.2.0
@@ -8876,7 +8881,7 @@ snapshots:
     dependencies:
       node-datachannel: 0.32.3
 
-  webtorrent@3.0.16(bare-url@2.4.5):
+  webtorrent@3.0.16(patch_hash=d98b104d1dd07b8bd7b2ff36b25d1cbb935eb8da7613b7e140b1640b5c905a90)(bare-url@2.4.5):
     dependencies:
       '@silentbot1/nat-api': 0.4.9
       '@thaunknown/simple-peer': 10.1.1

@@ -85,6 +85,18 @@
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.20.0"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "bufferutil",
+      "ip-set",
+      "node-datachannel",
+      "utf-8-validate",
+      "utp-native"
+    ],
+    "patchedDependencies": {
+      "webtorrent@3.0.16": "patches/webtorrent@3.0.16.patch"
+    }
+  },
   "jest": {
     "moduleFileExtensions": [
       "js",

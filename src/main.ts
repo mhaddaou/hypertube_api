@@ -15,8 +15,11 @@ async function bootstrap() {
   app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads' });
 
   app.enableCors({
-    origin: process.env.FRONTEND_URL ?? 'http://localhost:3000',
+    origin: true,
     credentials: true,
+    // Expose range/streaming headers so cross-origin <video> elements can read
+    // them and perform seekable, multi-chunk (206 Partial Content) playback.
+    exposedHeaders: ['Content-Range', 'Accept-Ranges', 'Content-Length', 'Content-Type'],
   });
 
   app.setGlobalPrefix('api');
