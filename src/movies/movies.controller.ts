@@ -1,6 +1,6 @@
 import { BadRequestException, Controller, Get, Param, Query, Req, Res } from '@nestjs/common';
 import { Request, Response } from 'express';
-import { MoviesService, MovieSummary } from './movies.service';
+import { MoviesService, MovieSummary, PopularMovieFilters } from './movies.service';
 import { StreamingService } from '../streaming/streaming.service';
 import { MovieProviderName } from '../providers/movie-provider.types';
 
@@ -23,6 +23,30 @@ export class MoviesController {
       throw new BadRequestException('Missing movie name');
     }
     return this.moviesService.searchMovies(query);
+  }
+
+  @Get('popular')
+  async listPopularMovies(
+    @Query('type') type: string | undefined,
+    @Query('year') year: string | undefined,
+    @Query('sort_by') sortBy: string | undefined,
+    @Query('order_by') orderBy: string | undefined,
+    @Query('quality') quality: string | undefined,
+    @Query('minimum_rating') minimumRating: string | undefined,
+    @Query('limit') limit: string | undefined,
+    @Query('page') page: string | undefined,
+  ): Promise<MovieSummary[]> {
+    const filters: PopularMovieFilters = {
+      type,
+      year: parseOptionalNumber(year),
+      sortBy,
+      orderBy,
+      quality,
+      minimumRating: parseOptionalNumber(minimumRating),
+      limit: parseOptionalNumber(limit),
+      page: parseOptionalNumber(page),
+    };
+    return this.moviesService.listPopularMovies(filters);
   }
 
   @Get('provider/:provider/:id')
@@ -142,6 +166,14 @@ export class MoviesController {
 
 function isMovieProvider(value: string): value is MovieProviderName {
   return value === 'yts' || value === 'tmdb';
+}
+
+function parseOptionalNumber(value: string | undefined): number | undefined {
+  if (typeof value !== 'string' || !value.trim()) {
+    return undefined;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 interface ByteRange {

@@ -12,6 +12,9 @@ export interface YtsMovieSummary {
   imdb_code?: string;
   year?: number;
   rating?: number;
+  genres?: string[];
+  download_count?: number;
+  like_count?: number;
   small_cover_image?: string;
   medium_cover_image?: string;
   large_cover_image?: string;

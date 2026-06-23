@@ -7,6 +7,7 @@ import { TmdbProvider } from '../providers/tmdb.provider';
 import { YtsProvider } from '../providers/yts.provider';
 import { StreamingService } from '../streaming/streaming.service';
 import { YtsMovieSummary } from '../yts/yts.types';
+import { YtsOrderBy, YtsSortBy } from '../yts/yts.service';
 
 @Injectable()
 export class MoviesService {
@@ -22,6 +23,29 @@ export class MoviesService {
   async listMovies() {
     const movies = await this.ytsService.listMovies();
     const summaries = movies.map((movie) => buildYtsSummary(movie));
+    return Promise.all(summaries.map((summary) => this.attachCacheStatus(summary)));
+  }
+
+  async listPopularMovies(filters: PopularMovieFilters) {
+    const limit = clampNumber(filters.limit, 1, 50, 12);
+    const page = clampNumber(filters.page, 1, 1000, 1);
+    const year = normalizeYear(filters.year);
+    const ytsLimit = year ? 50 : limit;
+
+    const movies = await this.ytsService.listMovies({
+      limit: ytsLimit,
+      page,
+      quality: filters.quality,
+      minimumRating: normalizeMinimumRating(filters.minimumRating),
+      genre: normalizeGenre(filters.type),
+      sortBy: mapPopularSort(filters.sortBy),
+      orderBy: normalizeOrder(filters.orderBy),
+    });
+
+    const filtered = year
+      ? movies.filter((movie) => movie.year === year).slice(0, limit)
+      : movies;
+    const summaries = filtered.map((movie) => buildYtsSummary(movie));
     return Promise.all(summaries.map((summary) => this.attachCacheStatus(summary)));
   }
 
@@ -245,8 +269,22 @@ export interface MovieSummary {
   image: string | null;
   cover_image: string | null;
   backdrop?: string | null;
+  genres?: string[];
+  views?: number | null;
+  likes?: number | null;
   sources: string[];
   cache_status?: unknown;
+}
+
+export interface PopularMovieFilters {
+  type?: string;
+  year?: number;
+  sortBy?: string;
+  orderBy?: string;
+  quality?: string;
+  minimumRating?: number;
+  limit?: number;
+  page?: number;
 }
 
 function buildYtsSummary(movie: YtsMovieSummary): MovieSummary {
@@ -256,6 +294,7 @@ function buildYtsSummary(movie: YtsMovieSummary): MovieSummary {
     movie.medium_cover_image ?? movie.large_cover_image ?? movie.small_cover_image ?? null;
   const coverImage =
     movie.large_cover_image ?? movie.medium_cover_image ?? movie.small_cover_image ?? null;
+  const genres = Array.isArray(movie.genres) ? movie.genres.filter(Boolean) : [];
 
   return {
     id: movie.id,
@@ -268,6 +307,9 @@ function buildYtsSummary(movie: YtsMovieSummary): MovieSummary {
     image,
     cover_image: coverImage,
     backdrop: coverImage,
+    genres,
+    views: typeof movie.download_count === 'number' ? movie.download_count : null,
+    likes: typeof movie.like_count === 'number' ? movie.like_count : null,
     sources: ['yts'],
   };
 }
@@ -351,4 +393,63 @@ function normalizeSubtitles(value: unknown): string[] {
     return Object.keys(value as Record<string, unknown>);
   }
   return [];
+}
+
+function clampNumber(
+  value: number | undefined,
+  min: number,
+  max: number,
+  fallback: number,
+): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return fallback;
+  }
+  return Math.min(Math.max(Math.trunc(value), min), max);
+}
+
+function normalizeYear(value?: number): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return null;
+  }
+  const year = Math.trunc(value);
+  return year >= 1900 && year <= 2100 ? year : null;
+}
+
+function normalizeMinimumRating(value?: number): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return undefined;
+  }
+  return Math.min(Math.max(Math.trunc(value), 0), 9);
+}
+
+function normalizeGenre(value?: string): string | undefined {
+  const normalized = value?.trim();
+  if (!normalized || normalized.toLowerCase() === 'all') {
+    return undefined;
+  }
+  return normalized;
+}
+
+function normalizeOrder(value?: string): YtsOrderBy {
+  return value === 'asc' ? 'asc' : 'desc';
+}
+
+function mapPopularSort(value?: string): YtsSortBy {
+  switch (value) {
+    case 'title':
+      return 'title';
+    case 'year':
+      return 'year';
+    case 'rating':
+      return 'rating';
+    case 'likes':
+      return 'like_count';
+    case 'seeds':
+      return 'seeds';
+    case 'latest':
+      return 'date_added';
+    case 'views':
+    default:
+      return 'download_count';
+  }
 }

@@ -291,6 +291,43 @@
         font-weight: 600;
         color: #111827;
       }
+      .popular {
+        margin: 16px 0;
+        padding: 12px;
+        border: 1px solid #e2e2e2;
+        border-radius: 8px;
+        background: #fafafa;
+      }
+      .popular-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+      .popular-filters {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 10px;
+      }
+      .filter-field label {
+        font-size: 13px;
+      }
+      .filter-field input,
+      .filter-field select {
+        margin-bottom: 0;
+      }
+      .popular-status {
+        margin-top: 12px;
+        font-size: 13px;
+        color: #374151;
+      }
+      .popular-grid {
+        margin-top: 12px;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 12px;
+      }
     </style>
   </head>
   <body>
@@ -313,6 +350,78 @@
           <strong>Results</strong>
           <div class="search-grid" id="searchResultsGrid"></div>
         </div>
+      </section>
+      <section class="popular">
+        <div class="popular-header">
+          <strong>Popular films</strong>
+          <button id="popularApplyBtn" type="button">Apply filters</button>
+        </div>
+        <div class="popular-filters">
+          <div class="filter-field">
+            <label for="popularType">Type</label>
+            <select id="popularType">
+              <option value="">All</option>
+              <option value="Action">Action</option>
+              <option value="Adventure">Adventure</option>
+              <option value="Animation">Animation</option>
+              <option value="Comedy">Comedy</option>
+              <option value="Crime">Crime</option>
+              <option value="Documentary">Documentary</option>
+              <option value="Drama">Drama</option>
+              <option value="Fantasy">Fantasy</option>
+              <option value="Horror">Horror</option>
+              <option value="Romance">Romance</option>
+              <option value="Sci-Fi">Sci-Fi</option>
+              <option value="Thriller">Thriller</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <label for="popularYear">Year</label>
+            <input id="popularYear" type="number" min="1900" max="2100" placeholder="Any" />
+          </div>
+          <div class="filter-field">
+            <label for="popularSort">Sort</label>
+            <select id="popularSort">
+              <option value="views">Views</option>
+              <option value="rating">IMDb rating</option>
+              <option value="year">Year</option>
+              <option value="latest">Latest</option>
+              <option value="likes">Likes</option>
+              <option value="seeds">Seeds</option>
+              <option value="title">Title</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <label for="popularOrder">Order</label>
+            <select id="popularOrder">
+              <option value="desc">Descending</option>
+              <option value="asc">Ascending</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <label for="popularQuality">Quality</label>
+            <select id="popularQuality">
+              <option value="">All</option>
+              <option value="720p">720p</option>
+              <option value="1080p">1080p</option>
+              <option value="2160p">2160p</option>
+              <option value="3D">3D</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <label for="popularMinimumRating">Minimum rating</label>
+            <select id="popularMinimumRating">
+              <option value="">Any</option>
+              <option value="5">5+</option>
+              <option value="6">6+</option>
+              <option value="7">7+</option>
+              <option value="8">8+</option>
+              <option value="9">9+</option>
+            </select>
+          </div>
+        </div>
+        <div class="popular-status" id="popularStatus">Loading...</div>
+        <div class="popular-grid" id="popularGrid"></div>
       </section>
       <div class="suggestions" id="suggestions" hidden>
         <strong>Suggestions</strong>
@@ -440,6 +549,15 @@
       const searchBtn = document.getElementById('searchBtn');
       const searchResults = document.getElementById('searchResults');
       const searchResultsGrid = document.getElementById('searchResultsGrid');
+      const popularApplyBtn = document.getElementById('popularApplyBtn');
+      const popularType = document.getElementById('popularType');
+      const popularYear = document.getElementById('popularYear');
+      const popularSort = document.getElementById('popularSort');
+      const popularOrder = document.getElementById('popularOrder');
+      const popularQuality = document.getElementById('popularQuality');
+      const popularMinimumRating = document.getElementById('popularMinimumRating');
+      const popularStatus = document.getElementById('popularStatus');
+      const popularGrid = document.getElementById('popularGrid');
       const nowPlaying = document.getElementById('nowPlaying');
       const nowPlayingTitle = document.getElementById('nowPlayingTitle');
       const nowPlayingMeta = document.getElementById('nowPlayingMeta');
@@ -744,6 +862,131 @@
         return 'N/A';
       }
 
+      function formatNumberValue(value) {
+        if (typeof value !== 'number' || !Number.isFinite(value)) {
+          return 'N/A';
+        }
+        return new Intl.NumberFormat('en').format(value);
+      }
+
+      function buildPopularUrl() {
+        const params = new URLSearchParams();
+        const type = popularType.value;
+        const year = popularYear.value.trim();
+        const sortBy = popularSort.value;
+        const orderBy = popularOrder.value;
+        const quality = popularQuality.value;
+        const minimumRating = popularMinimumRating.value;
+
+        if (type) {
+          params.set('type', type);
+        }
+        if (year) {
+          params.set('year', year);
+        }
+        if (sortBy) {
+          params.set('sort_by', sortBy);
+        }
+        if (orderBy) {
+          params.set('order_by', orderBy);
+        }
+        if (quality) {
+          params.set('quality', quality);
+        }
+        if (minimumRating) {
+          params.set('minimum_rating', minimumRating);
+        }
+        params.set('limit', '12');
+
+        return `http://localhost:3000/movies/popular?${params.toString()}`;
+      }
+
+      async function openMovieDetail(movie) {
+        if (!movie?.id) {
+          return;
+        }
+        const response = await fetch(
+          `http://localhost:3000/movies/${encodeURIComponent(movie.id)}`,
+        );
+        const detail = response.ok ? await response.json() : null;
+        showSuggestionDetail(mergeMovieDetail(detail, movie));
+        suggestionDetail.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+
+      function renderPopularCard(movie) {
+        const card = document.createElement('div');
+        card.className = 'search-card';
+
+        const img = document.createElement('img');
+        img.alt = movie?.name || 'Movie cover';
+        img.src = getMovieImage(movie) || 'https://via.placeholder.com/60x90?text=No+Image';
+
+        const meta = document.createElement('div');
+        meta.className = 'search-meta';
+
+        const title = document.createElement('div');
+        title.className = 'search-title';
+        title.textContent = movie?.name || 'Unknown Title';
+
+        const year = formatYearValue(movie?.year);
+        const imdb = formatRatingValue(movie?.imdb_rating ?? movie?.rating);
+        const info = document.createElement('div');
+        info.textContent = `Year: ${year} | IMDb: ${imdb}`;
+
+        const stats = document.createElement('div');
+        stats.textContent = `Views: ${formatNumberValue(movie?.views)} | Likes: ${formatNumberValue(movie?.likes)}`;
+
+        const genres = document.createElement('div');
+        genres.textContent = `Type: ${formatValue(movie?.genres)}`;
+
+        const actions = document.createElement('div');
+        const openBtn = document.createElement('button');
+        openBtn.type = 'button';
+        openBtn.className = 'suggestion-btn';
+        openBtn.textContent = 'Open';
+        openBtn.addEventListener('click', () => {
+          openMovieDetail(movie).catch(() => undefined);
+        });
+        actions.appendChild(openBtn);
+
+        meta.appendChild(title);
+        meta.appendChild(info);
+        meta.appendChild(stats);
+        meta.appendChild(genres);
+        meta.appendChild(actions);
+
+        card.appendChild(img);
+        card.appendChild(meta);
+        return card;
+      }
+
+      async function loadPopularMovies() {
+        popularApplyBtn.disabled = true;
+        popularStatus.hidden = false;
+        popularStatus.textContent = 'Loading...';
+        popularGrid.innerHTML = '';
+
+        const response = await fetch(buildPopularUrl());
+        if (!response.ok) {
+          popularStatus.textContent = 'Failed to load popular films.';
+          popularApplyBtn.disabled = false;
+          return;
+        }
+
+        const movies = await response.json();
+        if (!Array.isArray(movies) || movies.length === 0) {
+          popularStatus.textContent = 'No films found.';
+          popularApplyBtn.disabled = false;
+          return;
+        }
+
+        popularStatus.hidden = true;
+        movies.forEach((movie) => {
+          popularGrid.appendChild(renderPopularCard(movie));
+        });
+        popularApplyBtn.disabled = false;
+      }
+
       function updateNowPlaying(detail) {
         if (!detail) {
           nowPlaying.hidden = true;
@@ -1007,6 +1250,14 @@
         }
       });
 
+      popularApplyBtn.addEventListener('click', () => {
+        loadPopularMovies().catch(() => {
+          popularStatus.hidden = false;
+          popularStatus.textContent = 'Failed to load popular films.';
+          popularApplyBtn.disabled = false;
+        });
+      });
+
       subtitleLang.addEventListener('change', () => {
         updateSubtitleTrack(movieIdInput.value.trim());
       });
@@ -1051,6 +1302,11 @@
       });
       loadNowPlaying(movieIdInput.value.trim());
       loadCacheStatus(movieIdInput.value.trim());
+      loadPopularMovies().catch(() => {
+        popularStatus.hidden = false;
+        popularStatus.textContent = 'Failed to load popular films.';
+        popularApplyBtn.disabled = false;
+      });
     </script>
   </body>
 </html>
