@@ -1,5 +1,5 @@
 import { BadRequestException, Controller, Get, Param, Query, Req, Res } from '@nestjs/common';
-import { Request, Response } from 'express';
+import type { Request, Response } from 'express';
 import { MoviesService, MovieSummary, PopularMovieFilters } from './movies.service';
 import { StreamingService } from '../streaming/streaming.service';
 import { MovieProviderName } from '../providers/movie-provider.types';
