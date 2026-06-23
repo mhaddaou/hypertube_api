@@ -207,33 +207,7 @@ export class StreamingService {
       };
     }
 
-    let torrent = this.torrentService.getActiveTorrent(String(movieId));
-    
-    // If no active torrent, try to initialize one for status tracking
-    if (!torrent) {
-      try {
-        const movie = await this.ytsService.getMovieDetails(movieId);
-        const torrentInfo = pickTorrent(movie.torrents ?? [], quality);
-        if (torrentInfo) {
-          const magnetUri = buildMagnet(torrentInfo.hash, movie.title);
-          torrent = await this.torrentService.getTorrent(
-            String(movieId),
-            magnetUri,
-            this.storagePath,
-          );
-          
-          // Track the file download for caching
-          const file = pickVideoFile(torrent.files);
-          if (file) {
-            file.select();
-            this.trackFileDownload(torrent, file, movieId, torrentInfo.quality, mime.lookup(file.name) || 'application/octet-stream');
-          }
-        }
-      } catch (error) {
-        // Silently fail - torrent wasn't available
-      }
-    }
-    
+    const torrent = this.torrentService.getActiveTorrent(String(movieId));
     if (!torrent) {
       return {
         cached: false,

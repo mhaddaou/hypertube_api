@@ -150,7 +150,9 @@ export class MoviesService {
     if (summary.provider !== 'yts' || typeof summary.id !== 'number') {
       return { ...summary, cache_status: null };
     }
-    const cacheStatus = await this.streamingService.getCacheStatus(summary.id);
+    const cacheStatus = await this.streamingService
+      .getCacheStatus(summary.id)
+      .catch(() => null);
     return { ...summary, cache_status: cacheStatus };
   }
 
