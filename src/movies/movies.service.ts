@@ -20,8 +20,8 @@ export class MoviesService {
     private readonly streamingService: StreamingService,
   ) {}
 
-  async listMovies() {
-    const movies = await this.ytsService.listMovies();
+  async listMovies(pagination: MovieListPagination = {}) {
+    const movies = await this.fetchPaginatedMovies(pagination);
     const summaries = movies.map((movie) => buildYtsSummary(movie));
     return Promise.all(summaries.map((summary) => this.attachCacheStatus(summary)));
   }
@@ -180,6 +180,44 @@ export class MoviesService {
     return { ...summary, cache_status: cacheStatus };
   }
 
+  private async fetchPaginatedMovies(
+    pagination: MovieListPagination,
+  ): Promise<YtsMovieSummary[]> {
+    const limit = clampNumber(pagination.limit, 1, 50, 20);
+    const offset = normalizeOffset(pagination.offset, (1000 - 1) * limit);
+
+    if (typeof offset === 'number') {
+      return this.fetchMoviesByOffset(offset, limit);
+    }
+
+    const page = clampNumber(pagination.page, 1, 1000, 1);
+    return this.ytsService.listMovies({ limit, page });
+  }
+
+  private async fetchMoviesByOffset(
+    offset: number,
+    limit: number,
+  ): Promise<YtsMovieSummary[]> {
+    const page = Math.floor(offset / limit) + 1;
+    const skip = offset % limit;
+    const firstPage = await this.ytsService.listMovies({ limit, page });
+
+    if (skip === 0) {
+      return firstPage.slice(0, limit);
+    }
+
+    const selected = firstPage.slice(skip);
+    if (selected.length >= limit || firstPage.length < limit) {
+      return selected.slice(0, limit);
+    }
+
+    const secondPage = await this.ytsService.listMovies({
+      limit,
+      page: page + 1,
+    });
+    return selected.concat(secondPage).slice(0, limit);
+  }
+
   private async enrichTmdbSummary(movie: MovieSearchResult): Promise<MovieSummary> {
     const baseSummary = buildProviderSummary(movie);
     let summary = { ...baseSummary };
@@ -285,6 +323,12 @@ export interface PopularMovieFilters {
   minimumRating?: number;
   limit?: number;
   page?: number;
+}
+
+export interface MovieListPagination {
+  page?: number;
+  offset?: number;
+  limit?: number;
 }
 
 function buildYtsSummary(movie: YtsMovieSummary): MovieSummary {
@@ -405,6 +449,13 @@ function clampNumber(
     return fallback;
   }
   return Math.min(Math.max(Math.trunc(value), min), max);
+}
+
+function normalizeOffset(value: number | undefined, max: number): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return undefined;
+  }
+  return Math.min(Math.max(Math.trunc(value), 0), max);
 }
 
 function normalizeYear(value?: number): number | null {

@@ -1,6 +1,6 @@
 import { BadRequestException, Controller, Get, Param, Query, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { MoviesService, MovieSummary, PopularMovieFilters } from './movies.service';
+import { MovieListPagination, MoviesService, MovieSummary, PopularMovieFilters } from './movies.service';
 import { StreamingService } from '../streaming/streaming.service';
 import { MovieProviderName } from '../providers/movie-provider.types';
 
@@ -12,8 +12,17 @@ export class MoviesController {
   ) {}
 
   @Get()
-  async listMovies(): Promise<MovieSummary[]> {
-    return this.moviesService.listMovies();
+  async listMovies(
+    @Query('page') page: string | undefined,
+    @Query('offset') offset: string | undefined,
+    @Query('limit') limit: string | undefined,
+  ): Promise<MovieSummary[]> {
+    const pagination: MovieListPagination = {
+      page: parseOptionalNumber(page),
+      offset: parseOptionalNumber(offset),
+      limit: parseOptionalNumber(limit),
+    };
+    return this.moviesService.listMovies(pagination);
   }
 
   @Get('search')
