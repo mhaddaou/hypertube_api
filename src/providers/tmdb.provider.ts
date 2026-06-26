@@ -16,6 +16,7 @@ interface TmdbSearchMovie {
   release_date?: string;
   poster_path?: string | null;
   backdrop_path?: string | null;
+  overview?: string | null;
   vote_average?: number | null;
 }
 
@@ -27,6 +28,7 @@ interface TmdbMovieDetails {
   imdb_id?: string | null;
   poster_path?: string | null;
   backdrop_path?: string | null;
+  overview?: string | null;
 }
 
 @Injectable()
@@ -49,13 +51,16 @@ export class TmdbProvider implements MovieProvider {
       return [];
     }
 
-    const response = await this.client.get<TmdbSearchResponse>('/search/movie', {
-      params: {
-        api_key: this.apiKey,
-        query,
-        include_adult: false,
+    const response = await this.client.get<TmdbSearchResponse>(
+      '/search/movie',
+      {
+        params: {
+          api_key: this.apiKey,
+          query,
+          include_adult: false,
+        },
       },
-    });
+    );
 
     const results = response.data?.results ?? [];
     return results.map((movie) => ({
@@ -63,20 +68,27 @@ export class TmdbProvider implements MovieProvider {
       provider_id: String(movie.id),
       name: movie.title,
       year: parseYear(movie.release_date),
-      rating: typeof movie.vote_average === 'number' ? movie.vote_average : null,
+      rating:
+        typeof movie.vote_average === 'number' ? movie.vote_average : null,
+      plot: parseText(movie.overview),
       image: buildImageUrl(this.imageBase, movie.poster_path),
       backdrop: buildBackdropUrl(this.imageBase, movie.backdrop_path),
     }));
   }
 
-  async getMovieDetails(providerId: string): Promise<MovieDetailsResult | null> {
+  async getMovieDetails(
+    providerId: string,
+  ): Promise<MovieDetailsResult | null> {
     if (!this.apiKey) {
       return null;
     }
 
-    const response = await this.client.get<TmdbMovieDetails>(`/movie/${providerId}`, {
-      params: { api_key: this.apiKey },
-    });
+    const response = await this.client.get<TmdbMovieDetails>(
+      `/movie/${providerId}`,
+      {
+        params: { api_key: this.apiKey },
+      },
+    );
 
     const movie = response.data;
     if (!movie?.id) {
@@ -90,6 +102,7 @@ export class TmdbProvider implements MovieProvider {
       year: parseYear(movie.release_date),
       length: movie.runtime ?? null,
       imdb_id: movie.imdb_id ?? null,
+      plot: parseText(movie.overview),
       image: buildImageUrl(this.imageBase, movie.poster_path),
       backdrop: buildBackdropUrl(this.imageBase, movie.backdrop_path),
     };
@@ -116,4 +129,9 @@ function buildBackdropUrl(base: string, path?: string | null): string | null {
     return null;
   }
   return `${base}/w780${path}`;
+}
+
+function parseText(value?: string | null): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
 }

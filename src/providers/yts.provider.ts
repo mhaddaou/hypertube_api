@@ -20,12 +20,23 @@ export class YtsProvider implements MovieProvider {
       name: movie.title,
       year: movie.year ?? null,
       rating: typeof movie.rating === 'number' ? movie.rating : null,
-      image: movie.medium_cover_image ?? movie.large_cover_image ?? movie.small_cover_image ?? null,
-      backdrop: movie.large_cover_image ?? movie.medium_cover_image ?? movie.small_cover_image ?? null,
+      plot: parseMoviePlot(movie),
+      image:
+        movie.medium_cover_image ??
+        movie.large_cover_image ??
+        movie.small_cover_image ??
+        null,
+      backdrop:
+        movie.large_cover_image ??
+        movie.medium_cover_image ??
+        movie.small_cover_image ??
+        null,
     }));
   }
 
-  async getMovieDetails(providerId: string): Promise<MovieDetailsResult | null> {
+  async getMovieDetails(
+    providerId: string,
+  ): Promise<MovieDetailsResult | null> {
     const movieId = Number(providerId);
     if (!Number.isFinite(movieId)) {
       return null;
@@ -40,8 +51,17 @@ export class YtsProvider implements MovieProvider {
         year: movie.year ?? null,
         length: movie.runtime ?? null,
         imdb_id: movie.imdb_code ?? null,
-        image: movie.medium_cover_image ?? movie.large_cover_image ?? movie.small_cover_image ?? null,
-        backdrop: movie.large_cover_image ?? movie.medium_cover_image ?? movie.small_cover_image ?? null,
+        plot: parseMoviePlot(movie),
+        image:
+          movie.medium_cover_image ??
+          movie.large_cover_image ??
+          movie.small_cover_image ??
+          null,
+        backdrop:
+          movie.large_cover_image ??
+          movie.medium_cover_image ??
+          movie.small_cover_image ??
+          null,
       };
     } catch (error) {
       if (error instanceof NotFoundException) {
@@ -50,4 +70,21 @@ export class YtsProvider implements MovieProvider {
       throw error;
     }
   }
+}
+
+function parseMoviePlot(movie: {
+  description_full?: string;
+  summary?: string;
+  synopsis?: string;
+}): string | null {
+  return (
+    parseText(movie.description_full) ??
+    parseText(movie.summary) ??
+    parseText(movie.synopsis)
+  );
+}
+
+function parseText(value?: string): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
 }

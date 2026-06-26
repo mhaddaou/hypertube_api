@@ -6,6 +6,7 @@ export interface MovieSearchResult {
   name: string;
   year?: number | null;
   rating?: number | null;
+  plot?: string | null;
   image?: string | null;
   backdrop?: string | null;
 }
@@ -17,6 +18,7 @@ export interface MovieDetailsResult {
   year?: number | null;
   length?: number | null;
   imdb_id?: string | null;
+  plot?: string | null;
   image?: string | null;
   backdrop?: string | null;
 }

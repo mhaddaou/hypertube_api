@@ -2,7 +2,10 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { OmdbService } from '../omdb/omdb.service';
 import { YtsService } from '../yts/yts.service';
 import { JustWatchService } from '../providers/justwatch.service';
-import { MovieProviderName, MovieSearchResult } from '../providers/movie-provider.types';
+import {
+  MovieProviderName,
+  MovieSearchResult,
+} from '../providers/movie-provider.types';
 import { TmdbProvider } from '../providers/tmdb.provider';
 import { YtsProvider } from '../providers/yts.provider';
 import { StreamingService } from '../streaming/streaming.service';
@@ -23,7 +26,9 @@ export class MoviesService {
   async listMovies(pagination: MovieListPagination = {}) {
     const movies = await this.fetchPaginatedMovies(pagination);
     const summaries = movies.map((movie) => buildYtsSummary(movie));
-    return Promise.all(summaries.map((summary) => this.attachCacheStatus(summary)));
+    return Promise.all(
+      summaries.map((summary) => this.attachCacheStatus(summary)),
+    );
   }
 
   async listPopularMovies(filters: PopularMovieFilters) {
@@ -46,14 +51,18 @@ export class MoviesService {
       ? movies.filter((movie) => movie.year === year).slice(0, limit)
       : movies;
     const summaries = filtered.map((movie) => buildYtsSummary(movie));
-    return Promise.all(summaries.map((summary) => this.attachCacheStatus(summary)));
+    return Promise.all(
+      summaries.map((summary) => this.attachCacheStatus(summary)),
+    );
   }
 
   async searchMovies(name: string) {
     const ytsResults = await this.ytsProvider.searchMovies(name);
     if (ytsResults.length) {
       const summaries = ytsResults.map((movie) => buildProviderSummary(movie));
-      return Promise.all(summaries.map((summary) => this.attachCacheStatus(summary)));
+      return Promise.all(
+        summaries.map((summary) => this.attachCacheStatus(summary)),
+      );
     }
 
     const tmdbResults = await this.tmdbProvider.searchMovies(name);
@@ -81,7 +90,10 @@ export class MoviesService {
       movie.medium_cover_image ??
       movie.small_cover_image ??
       omdbPoster;
-    const availability = await this.justWatchService.getAvailability(movie.title, year);
+    const availability = await this.justWatchService.getAvailability(
+      movie.title,
+      year,
+    );
     const cacheStatus = await this.streamingService.getCacheStatus(movieId);
 
     return {
@@ -99,7 +111,7 @@ export class MoviesService {
       director: parseOmdbText(omdb?.Director),
       writer: parseOmdbText(omdb?.Writer),
       cast: parseOmdbText(omdb?.Actors),
-      plot: parseOmdbText(omdb?.Plot),
+      plot: parseOmdbText(omdb?.Plot) ?? parseMoviePlot(movie),
       language: parseOmdbText(omdb?.Language),
       country: parseOmdbText(omdb?.Country),
       awards: parseOmdbText(omdb?.Awards),
@@ -114,7 +126,10 @@ export class MoviesService {
     };
   }
 
-  async getMovieDetailsFromProvider(provider: MovieProviderName, providerId: string) {
+  async getMovieDetailsFromProvider(
+    provider: MovieProviderName,
+    providerId: string,
+  ) {
     if (provider === 'yts') {
       const movieId = Number(providerId);
       if (!Number.isFinite(movieId)) {
@@ -132,12 +147,20 @@ export class MoviesService {
       throw new NotFoundException('Movie not found');
     }
 
-    let omdb = await this.omdbService.getByImdbId(tmdbDetails.imdb_id ?? undefined);
+    let omdb = await this.omdbService.getByImdbId(
+      tmdbDetails.imdb_id ?? undefined,
+    );
     if (!omdb) {
-      omdb = await this.omdbService.getByTitle(tmdbDetails.name, tmdbDetails.year ?? null);
+      omdb = await this.omdbService.getByTitle(
+        tmdbDetails.name,
+        tmdbDetails.year ?? null,
+      );
     }
     const year = tmdbDetails.year ?? parseYear(omdb?.Year);
-    const availability = await this.justWatchService.getAvailability(tmdbDetails.name, year);
+    const availability = await this.justWatchService.getAvailability(
+      tmdbDetails.name,
+      year,
+    );
 
     return {
       provider: 'tmdb',
@@ -154,7 +177,7 @@ export class MoviesService {
       director: parseOmdbText(omdb?.Director),
       writer: parseOmdbText(omdb?.Writer),
       cast: parseOmdbText(omdb?.Actors),
-      plot: parseOmdbText(omdb?.Plot),
+      plot: parseOmdbText(omdb?.Plot) ?? tmdbDetails.plot ?? null,
       language: parseOmdbText(omdb?.Language),
       country: parseOmdbText(omdb?.Country),
       awards: parseOmdbText(omdb?.Awards),
@@ -170,7 +193,9 @@ export class MoviesService {
     };
   }
 
-  private async attachCacheStatus(summary: MovieSummary): Promise<MovieSummary> {
+  private async attachCacheStatus(
+    summary: MovieSummary,
+  ): Promise<MovieSummary> {
     if (summary.provider !== 'yts' || typeof summary.id !== 'number') {
       return { ...summary, cache_status: null };
     }
@@ -218,7 +243,9 @@ export class MoviesService {
     return selected.concat(secondPage).slice(0, limit);
   }
 
-  private async enrichTmdbSummary(movie: MovieSearchResult): Promise<MovieSummary> {
+  private async enrichTmdbSummary(
+    movie: MovieSearchResult,
+  ): Promise<MovieSummary> {
     const baseSummary = buildProviderSummary(movie);
     let summary = { ...baseSummary };
 
@@ -236,15 +263,25 @@ export class MoviesService {
       summary = {
         ...summary,
         year: summary.year ?? tmdbDetails.year ?? null,
-        image: summary.image ?? tmdbDetails.image ?? tmdbDetails.backdrop ?? null,
-        cover_image: summary.cover_image ?? tmdbDetails.backdrop ?? tmdbDetails.image ?? null,
+        image:
+          summary.image ?? tmdbDetails.image ?? tmdbDetails.backdrop ?? null,
+        cover_image:
+          summary.cover_image ??
+          tmdbDetails.backdrop ??
+          tmdbDetails.image ??
+          null,
         backdrop: summary.backdrop ?? tmdbDetails.backdrop ?? null,
       };
     }
 
-    const needsOmdb = summary.rating === null || summary.year === null || summary.image === null;
+    const needsOmdb =
+      summary.rating === null ||
+      summary.year === null ||
+      summary.image === null;
     if (needsOmdb) {
-      let omdb = await this.omdbService.getByImdbId(tmdbDetails?.imdb_id ?? undefined);
+      let omdb = await this.omdbService.getByImdbId(
+        tmdbDetails?.imdb_id ?? undefined,
+      );
       if (!omdb) {
         omdb = await this.omdbService.getByTitle(summary.name, summary.year);
       }
@@ -274,7 +311,10 @@ export class MoviesService {
       return null;
     }
 
-    const imdbId = tmdbDetails.imdb_id ?? (await this.getOmdbImdbId(tmdbDetails.name, tmdbDetails.year)) ?? null;
+    const imdbId =
+      tmdbDetails.imdb_id ??
+      (await this.getOmdbImdbId(tmdbDetails.name, tmdbDetails.year)) ??
+      null;
     if (imdbId) {
       const byImdb = await this.ytsService.findMovieByImdbId(imdbId);
       if (byImdb) {
@@ -287,7 +327,10 @@ export class MoviesService {
     return match?.id ?? null;
   }
 
-  private async getOmdbImdbId(title: string, year?: number | null): Promise<string | null> {
+  private async getOmdbImdbId(
+    title: string,
+    year?: number | null,
+  ): Promise<string | null> {
     const omdb = await this.omdbService.getByTitle(title, year ?? null);
     if (!omdb) {
       return null;
@@ -304,6 +347,7 @@ export interface MovieSummary {
   year: number | null;
   rating: number | null;
   imdb_rating: number | null;
+  plot: string | null;
   image: string | null;
   cover_image: string | null;
   backdrop?: string | null;
@@ -332,13 +376,23 @@ export interface MovieListPagination {
 }
 
 function buildYtsSummary(movie: YtsMovieSummary): MovieSummary {
-  const year = typeof movie.year === 'number' && movie.year > 0 ? movie.year : null;
-  const rating = typeof movie.rating === 'number' && movie.rating > 0 ? movie.rating : null;
+  const year =
+    typeof movie.year === 'number' && movie.year > 0 ? movie.year : null;
+  const rating =
+    typeof movie.rating === 'number' && movie.rating > 0 ? movie.rating : null;
   const image =
-    movie.medium_cover_image ?? movie.large_cover_image ?? movie.small_cover_image ?? null;
+    movie.medium_cover_image ??
+    movie.large_cover_image ??
+    movie.small_cover_image ??
+    null;
   const coverImage =
-    movie.large_cover_image ?? movie.medium_cover_image ?? movie.small_cover_image ?? null;
-  const genres = Array.isArray(movie.genres) ? movie.genres.filter(Boolean) : [];
+    movie.large_cover_image ??
+    movie.medium_cover_image ??
+    movie.small_cover_image ??
+    null;
+  const genres = Array.isArray(movie.genres)
+    ? movie.genres.filter(Boolean)
+    : [];
 
   return {
     id: movie.id,
@@ -348,20 +402,25 @@ function buildYtsSummary(movie: YtsMovieSummary): MovieSummary {
     year,
     rating,
     imdb_rating: rating,
+    plot: parseMoviePlot(movie),
     image,
     cover_image: coverImage,
     backdrop: coverImage,
     genres,
-    views: typeof movie.download_count === 'number' ? movie.download_count : null,
+    views:
+      typeof movie.download_count === 'number' ? movie.download_count : null,
     likes: typeof movie.like_count === 'number' ? movie.like_count : null,
     sources: ['yts'],
   };
 }
 
 function buildProviderSummary(movie: MovieSearchResult): MovieSummary {
-  const id = movie.provider === 'yts' ? Number(movie.provider_id) : movie.provider_id;
-  const year = typeof movie.year === 'number' && movie.year > 0 ? movie.year : null;
-  const rating = typeof movie.rating === 'number' && movie.rating > 0 ? movie.rating : null;
+  const id =
+    movie.provider === 'yts' ? Number(movie.provider_id) : movie.provider_id;
+  const year =
+    typeof movie.year === 'number' && movie.year > 0 ? movie.year : null;
+  const rating =
+    typeof movie.rating === 'number' && movie.rating > 0 ? movie.rating : null;
   const image = movie.image ?? movie.backdrop ?? null;
   const coverImage = movie.backdrop ?? movie.image ?? null;
 
@@ -373,6 +432,7 @@ function buildProviderSummary(movie: MovieSearchResult): MovieSummary {
     year,
     rating,
     imdb_rating: rating,
+    plot: movie.plot ?? null,
     image,
     cover_image: coverImage,
     backdrop: movie.backdrop ?? null,
@@ -416,7 +476,22 @@ function parseOmdbText(value?: string): string | null {
   return trimmed.length ? trimmed : null;
 }
 
-function pickBestYtsMatch(movies: YtsMovieSummary[], year?: number | null): YtsMovieSummary | null {
+function parseMoviePlot(movie: {
+  description_full?: string;
+  summary?: string;
+  synopsis?: string;
+}): string | null {
+  return (
+    parseOmdbText(movie.description_full) ??
+    parseOmdbText(movie.summary) ??
+    parseOmdbText(movie.synopsis)
+  );
+}
+
+function pickBestYtsMatch(
+  movies: YtsMovieSummary[],
+  year?: number | null,
+): YtsMovieSummary | null {
   if (!movies.length) {
     return null;
   }
@@ -451,7 +526,10 @@ function clampNumber(
   return Math.min(Math.max(Math.trunc(value), min), max);
 }
 
-function normalizeOffset(value: number | undefined, max: number): number | undefined {
+function normalizeOffset(
+  value: number | undefined,
+  max: number,
+): number | undefined {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
     return undefined;
   }

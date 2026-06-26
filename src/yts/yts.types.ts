@@ -13,6 +13,9 @@ export interface YtsMovieSummary {
   year?: number;
   rating?: number;
   genres?: string[];
+  summary?: string;
+  description_full?: string;
+  synopsis?: string;
   download_count?: number;
   like_count?: number;
   small_cover_image?: string;
@@ -34,6 +37,9 @@ export interface YtsMovieDetails {
   imdb_code?: string;
   year?: number;
   runtime?: number;
+  summary?: string;
+  description_full?: string;
+  synopsis?: string;
   small_cover_image?: string;
   medium_cover_image?: string;
   large_cover_image?: string;
