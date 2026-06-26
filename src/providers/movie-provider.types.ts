@@ -17,7 +17,7 @@ export interface MovieDetailsResult {
   provider_id: string;
   name: string;
   year?: number | null;
-  length?: number | null;
+  runtime?: number | null;
   imdb_id?: string | null;
   plot?: string | null;
   original_language?: string | null;

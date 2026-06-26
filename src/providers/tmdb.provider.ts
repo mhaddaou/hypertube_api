@@ -112,7 +112,7 @@ export class TmdbProvider implements MovieProvider {
       provider_id: String(movie.id),
       name: movie.title,
       year: parseYear(movie.release_date),
-      length: movie.runtime ?? null,
+      runtime: movie.runtime ?? null,
       imdb_id: movie.imdb_id ?? null,
       plot: parseText(movie.overview),
       original_language: parseText(movie.original_language),

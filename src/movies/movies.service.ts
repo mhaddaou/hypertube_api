@@ -157,7 +157,7 @@ export class MoviesService {
       year,
       released: parseOmdbText(omdb?.Released),
       rated: parseOmdbText(omdb?.Rated),
-      length: movie.runtime ?? parseRuntime(omdb?.Runtime),
+      runtime: movie.runtime ?? parseRuntime(omdb?.Runtime),
       genre: parseOmdbText(omdb?.Genre),
       director: parseOmdbText(omdb?.Director),
       writer: parseOmdbText(omdb?.Writer),
@@ -231,7 +231,7 @@ export class MoviesService {
       year,
       released: parseOmdbText(omdb?.Released),
       rated: parseOmdbText(omdb?.Rated),
-      length: tmdbDetails.length ?? parseRuntime(omdb?.Runtime),
+      runtime: tmdbDetails.runtime ?? parseRuntime(omdb?.Runtime),
       genre: parseOmdbText(omdb?.Genre),
       director: parseOmdbText(omdb?.Director),
       writer: parseOmdbText(omdb?.Writer),
@@ -495,6 +495,7 @@ export interface MovieSummary {
   year: number | null;
   rating: number | null;
   imdb_rating: number | null;
+  runtime: number | null;
   plot: string | null;
   language: string | null;
   original_language: string | null;
@@ -575,6 +576,7 @@ function buildYtsSummary(
     year,
     rating,
     imdb_rating: rating,
+    runtime: typeof movie.runtime === 'number' && movie.runtime > 0 ? movie.runtime : null,
     plot: parseMoviePlot(movie),
     language: movie.language ?? null,
     original_language: movie.language ?? null,
@@ -611,6 +613,7 @@ function buildProviderSummary(
     year,
     rating,
     imdb_rating: rating,
+    runtime: null,
     plot: movie.plot ?? null,
     language: movie.original_language ?? null,
     original_language: movie.original_language ?? null,

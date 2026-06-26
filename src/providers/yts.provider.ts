@@ -50,7 +50,7 @@ export class YtsProvider implements MovieProvider {
         provider_id: String(movie.id),
         name: movie.title,
         year: movie.year ?? null,
-        length: movie.runtime ?? null,
+        runtime: movie.runtime ?? null,
         imdb_id: movie.imdb_code ?? null,
         plot: parseMoviePlot(movie),
         original_language: parseText(movie.language),
