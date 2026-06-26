@@ -10,7 +10,11 @@ import { TmdbProvider } from '../providers/tmdb.provider';
 import { YtsProvider } from '../providers/yts.provider';
 import { StreamingService } from '../streaming/streaming.service';
 import { YtsMovieSummary } from '../yts/yts.types';
-import { YtsOrderBy, YtsSortBy } from '../yts/yts.service';
+import {
+  YtsListMoviesOptions,
+  YtsOrderBy,
+  YtsSortBy,
+} from '../yts/yts.service';
 
 @Injectable()
 export class MoviesService {
@@ -25,7 +29,11 @@ export class MoviesService {
 
   async listMovies(pagination: MovieListPagination = {}) {
     const movies = await this.fetchPaginatedMovies(pagination);
-    const summaries = movies.map((movie) => buildYtsSummary(movie));
+    const summaries = await Promise.all(
+      movies.map((movie) =>
+        this.buildYtsSummary(movie, pagination.responseLanguage),
+      ),
+    );
     return Promise.all(
       summaries.map((summary) => this.attachCacheStatus(summary)),
     );
@@ -37,37 +45,79 @@ export class MoviesService {
     const year = normalizeYear(filters.year);
     const ytsLimit = year ? 50 : limit;
 
-    const movies = await this.ytsService.listMovies({
-      limit: ytsLimit,
-      page,
+    const ytsOptions = {
       quality: filters.quality,
       minimumRating: normalizeMinimumRating(filters.minimumRating),
       genre: normalizeGenre(filters.type),
       sortBy: mapPopularSort(filters.sortBy),
       orderBy: normalizeOrder(filters.orderBy),
-    });
+    };
+    const movies =
+      year || filters.movieLanguage
+        ? await this.fetchFilteredYtsMovies({
+            limit,
+            offset: (page - 1) * limit,
+            language: filters.movieLanguage,
+            year,
+            ytsOptions,
+          })
+        : await this.ytsService.listMovies({
+            ...ytsOptions,
+            limit: ytsLimit,
+            page,
+          });
 
-    const filtered = year
-      ? movies.filter((movie) => movie.year === year).slice(0, limit)
-      : movies;
-    const summaries = filtered.map((movie) => buildYtsSummary(movie));
+    const filtered =
+      year && !filters.movieLanguage
+        ? movies.filter((movie) => movie.year === year).slice(0, limit)
+        : movies;
+    const summaries = await Promise.all(
+      filtered.map((movie) =>
+        this.buildYtsSummary(movie, filters.responseLanguage),
+      ),
+    );
     return Promise.all(
       summaries.map((summary) => this.attachCacheStatus(summary)),
     );
   }
 
-  async searchMovies(name: string) {
-    const ytsResults = await this.ytsProvider.searchMovies(name);
-    if (ytsResults.length) {
-      const summaries = ytsResults.map((movie) => buildProviderSummary(movie));
+  async searchMovies(name: string, options: MovieLanguageOptions = {}) {
+    if (shouldLocalize(options.responseLanguage)) {
+      const tmdbResults = filterProviderMoviesByLanguage(
+        await this.tmdbProvider.searchMovies(name, options.responseLanguage),
+        options.movieLanguage,
+      );
+      if (tmdbResults.length) {
+        return tmdbResults.map((movie) => ({
+          ...buildProviderSummary(movie, options.responseLanguage),
+          cache_status: null,
+        }));
+      }
+    }
+
+    const ytsMovies = filterYtsMoviesByLanguage(
+      await this.ytsService.searchMovies(name),
+      options.movieLanguage,
+    );
+    if (ytsMovies.length) {
+      const summaries = await Promise.all(
+        ytsMovies.map((movie) =>
+          this.buildYtsSummary(movie, options.responseLanguage),
+        ),
+      );
       return Promise.all(
         summaries.map((summary) => this.attachCacheStatus(summary)),
       );
     }
 
-    const tmdbResults = await this.tmdbProvider.searchMovies(name);
+    const tmdbResults = filterProviderMoviesByLanguage(
+      await this.tmdbProvider.searchMovies(name, options.responseLanguage),
+      options.movieLanguage,
+    );
     const enriched = await Promise.all(
-      tmdbResults.map((movie) => this.enrichTmdbSummary(movie)),
+      tmdbResults.map((movie) =>
+        this.enrichTmdbSummary(movie, options.responseLanguage),
+      ),
     );
     return enriched.map((summary) => ({
       ...summary,
@@ -75,8 +125,9 @@ export class MoviesService {
     }));
   }
 
-  async getMovieDetails(movieId: number) {
+  async getMovieDetails(movieId: number, responseLanguage?: MovieLanguage) {
     const movie = await this.ytsService.getMovieDetails(movieId);
+    const localized = await this.getLocalizedYtsMovie(movie, responseLanguage);
     const omdb = await this.omdbService.getByImdbId(movie.imdb_code);
     const year = movie.year ?? parseYear(omdb?.Year);
     const omdbPoster = parseOmdbText(omdb?.Poster);
@@ -100,7 +151,7 @@ export class MoviesService {
       provider: 'yts',
       provider_id: String(movie.id),
       id: movie.id,
-      name: movie.title,
+      name: localized?.name ?? movie.title,
       imdb_rating: parseImdbRating(omdb?.imdbRating),
       imdb_votes: parseOmdbText(omdb?.imdbVotes),
       year,
@@ -111,15 +162,19 @@ export class MoviesService {
       director: parseOmdbText(omdb?.Director),
       writer: parseOmdbText(omdb?.Writer),
       cast: parseOmdbText(omdb?.Actors),
-      plot: parseOmdbText(omdb?.Plot) ?? parseMoviePlot(movie),
-      language: parseOmdbText(omdb?.Language),
+      plot:
+        localized?.plot ?? parseOmdbText(omdb?.Plot) ?? parseMoviePlot(movie),
+      language: parseOmdbText(omdb?.Language) ?? movie.language ?? null,
+      original_language: movie.language ?? localized?.original_language ?? null,
+      response_language: responseLanguage ?? 'en',
       country: parseOmdbText(omdb?.Country),
       awards: parseOmdbText(omdb?.Awards),
       production: parseOmdbText(omdb?.Production),
       box_office: parseOmdbText(omdb?.BoxOffice),
       subtitles: normalizeSubtitles(movie.subtitles),
-      image: image ?? null,
-      cover_image: coverImage ?? null,
+      image: localized?.image ?? image ?? null,
+      cover_image:
+        localized?.backdrop ?? localized?.image ?? coverImage ?? null,
       cache_status: cacheStatus,
       sources: ['yts', 'omdb', 'justwatch'],
       availability,
@@ -129,20 +184,24 @@ export class MoviesService {
   async getMovieDetailsFromProvider(
     provider: MovieProviderName,
     providerId: string,
+    responseLanguage?: MovieLanguage,
   ) {
     if (provider === 'yts') {
       const movieId = Number(providerId);
       if (!Number.isFinite(movieId)) {
         throw new NotFoundException('Movie not found');
       }
-      return this.getMovieDetails(movieId);
+      return this.getMovieDetails(movieId, responseLanguage);
     }
 
     if (provider !== 'tmdb') {
       throw new NotFoundException('Movie not found');
     }
 
-    const tmdbDetails = await this.tmdbProvider.getMovieDetails(providerId);
+    const tmdbDetails = await this.tmdbProvider.getMovieDetails(
+      providerId,
+      responseLanguage,
+    );
     if (!tmdbDetails) {
       throw new NotFoundException('Movie not found');
     }
@@ -177,8 +236,10 @@ export class MoviesService {
       director: parseOmdbText(omdb?.Director),
       writer: parseOmdbText(omdb?.Writer),
       cast: parseOmdbText(omdb?.Actors),
-      plot: parseOmdbText(omdb?.Plot) ?? tmdbDetails.plot ?? null,
+      plot: tmdbDetails.plot ?? parseOmdbText(omdb?.Plot),
       language: parseOmdbText(omdb?.Language),
+      original_language: tmdbDetails.original_language ?? null,
+      response_language: responseLanguage ?? 'en',
       country: parseOmdbText(omdb?.Country),
       awards: parseOmdbText(omdb?.Awards),
       production: parseOmdbText(omdb?.Production),
@@ -205,18 +266,101 @@ export class MoviesService {
     return { ...summary, cache_status: cacheStatus };
   }
 
+  private async buildYtsSummary(
+    movie: YtsMovieSummary,
+    responseLanguage?: MovieLanguage,
+  ): Promise<MovieSummary> {
+    const summary = buildYtsSummary(movie, responseLanguage);
+    const localized = await this.getLocalizedYtsMovie(movie, responseLanguage);
+    if (!localized) {
+      return summary;
+    }
+
+    return {
+      ...summary,
+      name: localized.name,
+      year: summary.year ?? localized.year ?? null,
+      rating: summary.rating ?? localized.rating ?? null,
+      imdb_rating: summary.imdb_rating ?? localized.rating ?? null,
+      plot: localized.plot ?? summary.plot,
+      image: localized.image ?? summary.image,
+      cover_image: localized.backdrop ?? localized.image ?? summary.cover_image,
+      backdrop: localized.backdrop ?? summary.backdrop,
+      sources: Array.from(new Set([...summary.sources, 'tmdb'])),
+    };
+  }
+
+  private async getLocalizedYtsMovie(
+    movie: YtsMovieSummary,
+    responseLanguage?: MovieLanguage,
+  ): Promise<MovieSearchResult | null> {
+    if (!shouldLocalize(responseLanguage)) {
+      return null;
+    }
+    return this.tmdbProvider
+      .getMovieByImdbId(movie.imdb_code, responseLanguage)
+      .catch(() => null);
+  }
+
   private async fetchPaginatedMovies(
     pagination: MovieListPagination,
   ): Promise<YtsMovieSummary[]> {
     const limit = clampNumber(pagination.limit, 1, 50, 20);
+    const page = clampNumber(pagination.page, 1, 1000, 1);
     const offset = normalizeOffset(pagination.offset, (1000 - 1) * limit);
+
+    if (pagination.movieLanguage) {
+      return this.fetchFilteredYtsMovies({
+        limit,
+        offset: offset ?? (page - 1) * limit,
+        language: pagination.movieLanguage,
+      });
+    }
 
     if (typeof offset === 'number') {
       return this.fetchMoviesByOffset(offset, limit);
     }
 
-    const page = clampNumber(pagination.page, 1, 1000, 1);
     return this.ytsService.listMovies({ limit, page });
+  }
+
+  private async fetchFilteredYtsMovies({
+    limit,
+    offset,
+    language,
+    year,
+    ytsOptions = {},
+  }: FetchFilteredYtsMoviesOptions): Promise<YtsMovieSummary[]> {
+    const target = offset + limit;
+    const collected: YtsMovieSummary[] = [];
+    const ytsLimit = 50;
+    let page = 1;
+
+    while (collected.length < target && page <= 100) {
+      const movies = await this.ytsService.listMovies({
+        ...ytsOptions,
+        limit: ytsLimit,
+        page,
+      });
+      if (!movies.length) {
+        break;
+      }
+
+      collected.push(
+        ...movies.filter(
+          (movie) =>
+            (!language || hasMovieLanguage(movie.language, language)) &&
+            (!year || movie.year === year),
+        ),
+      );
+
+      if (movies.length < ytsLimit) {
+        break;
+      }
+      page += 1;
+    }
+
+    return collected.slice(offset, offset + limit);
   }
 
   private async fetchMoviesByOffset(
@@ -245,8 +389,9 @@ export class MoviesService {
 
   private async enrichTmdbSummary(
     movie: MovieSearchResult,
+    responseLanguage?: MovieLanguage,
   ): Promise<MovieSummary> {
-    const baseSummary = buildProviderSummary(movie);
+    const baseSummary = buildProviderSummary(movie, responseLanguage);
     let summary = { ...baseSummary };
 
     const needsTmdbDetails =
@@ -256,7 +401,10 @@ export class MoviesService {
       summary.cover_image === null;
 
     const tmdbDetails = needsTmdbDetails
-      ? await this.tmdbProvider.getMovieDetails(movie.provider_id)
+      ? await this.tmdbProvider.getMovieDetails(
+          movie.provider_id,
+          responseLanguage,
+        )
       : null;
 
     if (tmdbDetails) {
@@ -348,6 +496,9 @@ export interface MovieSummary {
   rating: number | null;
   imdb_rating: number | null;
   plot: string | null;
+  language: string | null;
+  original_language: string | null;
+  response_language: MovieLanguage;
   image: string | null;
   cover_image: string | null;
   backdrop?: string | null;
@@ -367,15 +518,37 @@ export interface PopularMovieFilters {
   minimumRating?: number;
   limit?: number;
   page?: number;
+  responseLanguage?: MovieLanguage;
+  movieLanguage?: MovieLanguage;
 }
 
 export interface MovieListPagination {
   page?: number;
   offset?: number;
   limit?: number;
+  responseLanguage?: MovieLanguage;
+  movieLanguage?: MovieLanguage;
 }
 
-function buildYtsSummary(movie: YtsMovieSummary): MovieSummary {
+export type MovieLanguage = 'en' | 'fr' | 'ar';
+
+export interface MovieLanguageOptions {
+  responseLanguage?: MovieLanguage;
+  movieLanguage?: MovieLanguage;
+}
+
+interface FetchFilteredYtsMoviesOptions {
+  limit: number;
+  offset: number;
+  language?: MovieLanguage;
+  year?: number | null;
+  ytsOptions?: YtsListMoviesOptions;
+}
+
+function buildYtsSummary(
+  movie: YtsMovieSummary,
+  responseLanguage: MovieLanguage = 'en',
+): MovieSummary {
   const year =
     typeof movie.year === 'number' && movie.year > 0 ? movie.year : null;
   const rating =
@@ -403,6 +576,9 @@ function buildYtsSummary(movie: YtsMovieSummary): MovieSummary {
     rating,
     imdb_rating: rating,
     plot: parseMoviePlot(movie),
+    language: movie.language ?? null,
+    original_language: movie.language ?? null,
+    response_language: responseLanguage,
     image,
     cover_image: coverImage,
     backdrop: coverImage,
@@ -414,7 +590,10 @@ function buildYtsSummary(movie: YtsMovieSummary): MovieSummary {
   };
 }
 
-function buildProviderSummary(movie: MovieSearchResult): MovieSummary {
+function buildProviderSummary(
+  movie: MovieSearchResult,
+  responseLanguage: MovieLanguage = 'en',
+): MovieSummary {
   const id =
     movie.provider === 'yts' ? Number(movie.provider_id) : movie.provider_id;
   const year =
@@ -433,6 +612,9 @@ function buildProviderSummary(movie: MovieSearchResult): MovieSummary {
     rating,
     imdb_rating: rating,
     plot: movie.plot ?? null,
+    language: movie.original_language ?? null,
+    original_language: movie.original_language ?? null,
+    response_language: responseLanguage,
     image,
     cover_image: coverImage,
     backdrop: movie.backdrop ?? null,
@@ -486,6 +668,62 @@ function parseMoviePlot(movie: {
     parseOmdbText(movie.summary) ??
     parseOmdbText(movie.synopsis)
   );
+}
+
+function filterYtsMoviesByLanguage(
+  movies: YtsMovieSummary[],
+  language?: MovieLanguage,
+): YtsMovieSummary[] {
+  if (!language) {
+    return movies;
+  }
+  return movies.filter((movie) => hasMovieLanguage(movie.language, language));
+}
+
+function filterProviderMoviesByLanguage<
+  T extends { original_language?: string | null },
+>(movies: T[], language?: MovieLanguage): T[] {
+  if (!language) {
+    return movies;
+  }
+  return movies.filter((movie) =>
+    hasMovieLanguage(movie.original_language, language),
+  );
+}
+
+function hasMovieLanguage(
+  language: string | null | undefined,
+  expected: MovieLanguage,
+): boolean {
+  return normalizeMovieLanguage(language) === expected;
+}
+
+function normalizeMovieLanguage(
+  language: string | null | undefined,
+): MovieLanguage | null {
+  const normalized = language?.trim().toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+
+  if (normalized.startsWith('fr') || normalized === 'french') {
+    return 'fr';
+  }
+  if (
+    normalized.startsWith('ar') ||
+    normalized === 'arabic' ||
+    normalized === 'العربية'
+  ) {
+    return 'ar';
+  }
+  if (normalized.startsWith('en') || normalized === 'english') {
+    return 'en';
+  }
+  return null;
+}
+
+function shouldLocalize(language?: MovieLanguage): language is 'fr' | 'ar' {
+  return language === 'fr' || language === 'ar';
 }
 
 function pickBestYtsMatch(

@@ -15,6 +15,7 @@ import {
 import type { Request, Response } from 'express';
 import {
   MovieListPagination,
+  MovieLanguage,
   MoviesService,
   MovieSummary,
   PopularMovieFilters,
@@ -43,11 +44,19 @@ export class MoviesController {
     @Query('page') page: string | undefined,
     @Query('offset') offset: string | undefined,
     @Query('limit') limit: string | undefined,
+    @Query('language') language: string | undefined,
+    @Query('lang') lang: string | undefined,
+    @Query('movie_language') movieLanguage: string | undefined,
+    @Query('original_language') originalLanguage: string | undefined,
   ): Promise<MovieSummary[]> {
     const pagination: MovieListPagination = {
       page: parseOptionalNumber(page),
       offset: parseOptionalNumber(offset),
       limit: parseOptionalNumber(limit),
+      ...buildLanguageOptions(
+        language ?? lang,
+        movieLanguage ?? originalLanguage,
+      ),
     };
     return this.moviesService.listMovies(pagination);
   }
@@ -55,12 +64,19 @@ export class MoviesController {
   @Get('search')
   async searchMovies(
     @Query('name') name: string | undefined,
+    @Query('language') language: string | undefined,
+    @Query('lang') lang: string | undefined,
+    @Query('movie_language') movieLanguage: string | undefined,
+    @Query('original_language') originalLanguage: string | undefined,
   ): Promise<MovieSummary[]> {
     const query = typeof name === 'string' ? name.trim() : '';
     if (!query) {
       throw new BadRequestException('Missing movie name');
     }
-    return this.moviesService.searchMovies(query);
+    return this.moviesService.searchMovies(
+      query,
+      buildLanguageOptions(language ?? lang, movieLanguage ?? originalLanguage),
+    );
   }
 
   @Get('popular')
@@ -73,6 +89,10 @@ export class MoviesController {
     @Query('minimum_rating') minimumRating: string | undefined,
     @Query('limit') limit: string | undefined,
     @Query('page') page: string | undefined,
+    @Query('language') language: string | undefined,
+    @Query('lang') lang: string | undefined,
+    @Query('movie_language') movieLanguage: string | undefined,
+    @Query('original_language') originalLanguage: string | undefined,
   ): Promise<MovieSummary[]> {
     const filters: PopularMovieFilters = {
       type,
@@ -83,6 +103,10 @@ export class MoviesController {
       minimumRating: parseOptionalNumber(minimumRating),
       limit: parseOptionalNumber(limit),
       page: parseOptionalNumber(page),
+      ...buildLanguageOptions(
+        language ?? lang,
+        movieLanguage ?? originalLanguage,
+      ),
     };
     return this.moviesService.listPopularMovies(filters);
   }
@@ -196,12 +220,18 @@ export class MoviesController {
   async getMovieFromProvider(
     @Param('provider') provider: string,
     @Param('id') id: string,
+    @Query('language') language: string | undefined,
+    @Query('lang') lang: string | undefined,
   ) {
     const normalized = provider.toLowerCase();
     if (!isMovieProvider(normalized)) {
       throw new BadRequestException('Unknown provider');
     }
-    return this.moviesService.getMovieDetailsFromProvider(normalized, id);
+    return this.moviesService.getMovieDetailsFromProvider(
+      normalized,
+      id,
+      parseOptionalLanguage(language ?? lang),
+    );
   }
 
   @Get('provider/:provider/:id/resolve')
@@ -219,12 +249,19 @@ export class MoviesController {
   }
 
   @Get(':id')
-  async getMovie(@Param('id') id: string) {
+  async getMovie(
+    @Param('id') id: string,
+    @Query('language') language: string | undefined,
+    @Query('lang') lang: string | undefined,
+  ) {
     const movieId = Number(id);
     if (!Number.isFinite(movieId)) {
       throw new BadRequestException('Invalid movie id');
     }
-    return this.moviesService.getMovieDetails(movieId);
+    return this.moviesService.getMovieDetails(
+      movieId,
+      parseOptionalLanguage(language ?? lang),
+    );
   }
 
   @Get(':id/stream')
@@ -319,6 +356,72 @@ function parseOptionalNumber(value: string | undefined): number | undefined {
   }
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function buildLanguageOptions(
+  responseLanguageValue: string | undefined,
+  movieLanguageValue: string | undefined,
+): {
+  responseLanguage?: MovieLanguage;
+  movieLanguage?: MovieLanguage;
+} {
+  const responseLanguage = parseOptionalLanguage(responseLanguageValue);
+  const hasMovieLanguageValue =
+    typeof movieLanguageValue === 'string' && movieLanguageValue.trim();
+  return {
+    responseLanguage,
+    movieLanguage: hasMovieLanguageValue
+      ? parseOptionalMovieLanguage(movieLanguageValue)
+      : responseLanguage,
+  };
+}
+
+function parseOptionalLanguage(
+  value: string | undefined,
+): MovieLanguage | undefined {
+  if (typeof value !== 'string' || !value.trim()) {
+    return undefined;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (
+    normalized === 'en' ||
+    normalized === 'en-us' ||
+    normalized === 'english'
+  ) {
+    return 'en';
+  }
+  if (
+    normalized === 'fr' ||
+    normalized === 'fr-fr' ||
+    normalized === 'french'
+  ) {
+    return 'fr';
+  }
+  if (
+    normalized === 'ar' ||
+    normalized === 'ar-sa' ||
+    normalized === 'arabic' ||
+    normalized === 'العربية'
+  ) {
+    return 'ar';
+  }
+
+  throw new BadRequestException('Unsupported language');
+}
+
+function parseOptionalMovieLanguage(
+  value: string | undefined,
+): MovieLanguage | undefined {
+  if (typeof value !== 'string' || !value.trim()) {
+    return undefined;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'all' || normalized === 'any') {
+    return undefined;
+  }
+  return parseOptionalLanguage(value);
 }
 
 function assertUserToken(user: JwtUser): void {

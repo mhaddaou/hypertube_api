@@ -17,6 +17,7 @@ interface TmdbSearchMovie {
   poster_path?: string | null;
   backdrop_path?: string | null;
   overview?: string | null;
+  original_language?: string | null;
   vote_average?: number | null;
 }
 
@@ -29,6 +30,11 @@ interface TmdbMovieDetails {
   poster_path?: string | null;
   backdrop_path?: string | null;
   overview?: string | null;
+  original_language?: string | null;
+}
+
+interface TmdbFindResponse {
+  movie_results?: TmdbSearchMovie[];
 }
 
 @Injectable()
@@ -46,7 +52,10 @@ export class TmdbProvider implements MovieProvider {
     });
   }
 
-  async searchMovies(query: string): Promise<MovieSearchResult[]> {
+  async searchMovies(
+    query: string,
+    language?: string,
+  ): Promise<MovieSearchResult[]> {
     if (!this.apiKey) {
       return [];
     }
@@ -58,6 +67,7 @@ export class TmdbProvider implements MovieProvider {
           api_key: this.apiKey,
           query,
           include_adult: false,
+          language: mapTmdbLanguage(language),
         },
       },
     );
@@ -71,6 +81,7 @@ export class TmdbProvider implements MovieProvider {
       rating:
         typeof movie.vote_average === 'number' ? movie.vote_average : null,
       plot: parseText(movie.overview),
+      original_language: parseText(movie.original_language),
       image: buildImageUrl(this.imageBase, movie.poster_path),
       backdrop: buildBackdropUrl(this.imageBase, movie.backdrop_path),
     }));
@@ -78,6 +89,7 @@ export class TmdbProvider implements MovieProvider {
 
   async getMovieDetails(
     providerId: string,
+    language?: string,
   ): Promise<MovieDetailsResult | null> {
     if (!this.apiKey) {
       return null;
@@ -86,7 +98,7 @@ export class TmdbProvider implements MovieProvider {
     const response = await this.client.get<TmdbMovieDetails>(
       `/movie/${providerId}`,
       {
-        params: { api_key: this.apiKey },
+        params: { api_key: this.apiKey, language: mapTmdbLanguage(language) },
       },
     );
 
@@ -103,6 +115,45 @@ export class TmdbProvider implements MovieProvider {
       length: movie.runtime ?? null,
       imdb_id: movie.imdb_id ?? null,
       plot: parseText(movie.overview),
+      original_language: parseText(movie.original_language),
+      image: buildImageUrl(this.imageBase, movie.poster_path),
+      backdrop: buildBackdropUrl(this.imageBase, movie.backdrop_path),
+    };
+  }
+
+  async getMovieByImdbId(
+    imdbId: string | undefined,
+    language?: string,
+  ): Promise<MovieSearchResult | null> {
+    if (!this.apiKey || !imdbId) {
+      return null;
+    }
+
+    const response = await this.client.get<TmdbFindResponse>(
+      `/find/${imdbId}`,
+      {
+        params: {
+          api_key: this.apiKey,
+          external_source: 'imdb_id',
+          language: mapTmdbLanguage(language),
+        },
+      },
+    );
+
+    const movie = response.data?.movie_results?.[0];
+    if (!movie?.id) {
+      return null;
+    }
+
+    return {
+      provider: this.name,
+      provider_id: String(movie.id),
+      name: movie.title,
+      year: parseYear(movie.release_date),
+      rating:
+        typeof movie.vote_average === 'number' ? movie.vote_average : null,
+      plot: parseText(movie.overview),
+      original_language: parseText(movie.original_language),
       image: buildImageUrl(this.imageBase, movie.poster_path),
       backdrop: buildBackdropUrl(this.imageBase, movie.backdrop_path),
     };
@@ -134,4 +185,17 @@ function buildBackdropUrl(base: string, path?: string | null): string | null {
 function parseText(value?: string | null): string | null {
   const trimmed = value?.trim();
   return trimmed ? trimmed : null;
+}
+
+function mapTmdbLanguage(language?: string): string | undefined {
+  switch (language) {
+    case 'ar':
+      return 'ar-SA';
+    case 'fr':
+      return 'fr-FR';
+    case 'en':
+      return 'en-US';
+    default:
+      return undefined;
+  }
 }

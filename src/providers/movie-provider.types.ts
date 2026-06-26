@@ -7,6 +7,7 @@ export interface MovieSearchResult {
   year?: number | null;
   rating?: number | null;
   plot?: string | null;
+  original_language?: string | null;
   image?: string | null;
   backdrop?: string | null;
 }
@@ -19,12 +20,16 @@ export interface MovieDetailsResult {
   length?: number | null;
   imdb_id?: string | null;
   plot?: string | null;
+  original_language?: string | null;
   image?: string | null;
   backdrop?: string | null;
 }
 
 export interface MovieProvider {
   name: MovieProviderName;
-  searchMovies(query: string): Promise<MovieSearchResult[]>;
-  getMovieDetails(providerId: string): Promise<MovieDetailsResult | null>;
+  searchMovies(query: string, language?: string): Promise<MovieSearchResult[]>;
+  getMovieDetails(
+    providerId: string,
+    language?: string,
+  ): Promise<MovieDetailsResult | null>;
 }

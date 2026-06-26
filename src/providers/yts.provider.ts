@@ -21,6 +21,7 @@ export class YtsProvider implements MovieProvider {
       year: movie.year ?? null,
       rating: typeof movie.rating === 'number' ? movie.rating : null,
       plot: parseMoviePlot(movie),
+      original_language: parseText(movie.language),
       image:
         movie.medium_cover_image ??
         movie.large_cover_image ??
@@ -52,6 +53,7 @@ export class YtsProvider implements MovieProvider {
         length: movie.runtime ?? null,
         imdb_id: movie.imdb_code ?? null,
         plot: parseMoviePlot(movie),
+        original_language: parseText(movie.language),
         image:
           movie.medium_cover_image ??
           movie.large_cover_image ??
