@@ -1,14 +1,41 @@
-import { BadRequestException, Controller, Get, Param, Query, Req, Res } from '@nestjs/common';
+import {
+  BadRequestException,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Post,
+  Query,
+  Req,
+  Res,
+  UnauthorizedException,
+  UseGuards,
+} from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { MovieListPagination, MoviesService, MovieSummary, PopularMovieFilters } from './movies.service';
+import {
+  MovieListPagination,
+  MoviesService,
+  MovieSummary,
+  PopularMovieFilters,
+} from './movies.service';
 import { StreamingService } from '../streaming/streaming.service';
 import { MovieProviderName } from '../providers/movie-provider.types';
+import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
+import { UserMoviesService } from './user-movies.service';
+
+interface JwtUser {
+  userId: string;
+  type: 'user' | 'client';
+}
 
 @Controller('movies')
 export class MoviesController {
   constructor(
     private readonly moviesService: MoviesService,
     private readonly streamingService: StreamingService,
+    private readonly userMoviesService: UserMoviesService,
   ) {}
 
   @Get()
@@ -26,7 +53,9 @@ export class MoviesController {
   }
 
   @Get('search')
-  async searchMovies(@Query('name') name: string | undefined): Promise<MovieSummary[]> {
+  async searchMovies(
+    @Query('name') name: string | undefined,
+  ): Promise<MovieSummary[]> {
     const query = typeof name === 'string' ? name.trim() : '';
     if (!query) {
       throw new BadRequestException('Missing movie name');
@@ -56,6 +85,111 @@ export class MoviesController {
       page: parseOptionalNumber(page),
     };
     return this.moviesService.listPopularMovies(filters);
+  }
+
+  @Get('watchlist')
+  @UseGuards(JwtAuthGuard)
+  listWatchlist(@CurrentUser() user: JwtUser) {
+    assertUserToken(user);
+    return this.userMoviesService.listWatchlist(user.userId);
+  }
+
+  @Get('wishlist')
+  @UseGuards(JwtAuthGuard)
+  listWishlist(@CurrentUser() user: JwtUser) {
+    assertUserToken(user);
+    return this.userMoviesService.listWatchlist(user.userId);
+  }
+
+  @Post(':movie_id/watchlist')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  addToWatchlist(
+    @Param('movie_id') movieIdParam: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    assertUserToken(user);
+    return this.userMoviesService.addToWatchlist(
+      user.userId,
+      parsePositiveInt(movieIdParam, 'Invalid movie id'),
+    );
+  }
+
+  @Post(':movie_id/wishlist')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  addToWishlist(
+    @Param('movie_id') movieIdParam: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    assertUserToken(user);
+    return this.userMoviesService.addToWatchlist(
+      user.userId,
+      parsePositiveInt(movieIdParam, 'Invalid movie id'),
+    );
+  }
+
+  @Delete(':movie_id/watchlist')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  removeFromWatchlist(
+    @Param('movie_id') movieIdParam: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    assertUserToken(user);
+    return this.userMoviesService.removeFromWatchlist(
+      user.userId,
+      parsePositiveInt(movieIdParam, 'Invalid movie id'),
+    );
+  }
+
+  @Delete(':movie_id/wishlist')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  removeFromWishlist(
+    @Param('movie_id') movieIdParam: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    assertUserToken(user);
+    return this.userMoviesService.removeFromWatchlist(
+      user.userId,
+      parsePositiveInt(movieIdParam, 'Invalid movie id'),
+    );
+  }
+
+  @Get('watched')
+  @UseGuards(JwtAuthGuard)
+  listWatched(@CurrentUser() user: JwtUser) {
+    assertUserToken(user);
+    return this.userMoviesService.listWatched(user.userId);
+  }
+
+  @Post(':movie_id/watched')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  markWatched(
+    @Param('movie_id') movieIdParam: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    assertUserToken(user);
+    return this.userMoviesService.markWatched(
+      user.userId,
+      parsePositiveInt(movieIdParam, 'Invalid movie id'),
+    );
+  }
+
+  @Delete(':movie_id/watched')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  unmarkWatched(
+    @Param('movie_id') movieIdParam: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    assertUserToken(user);
+    return this.userMoviesService.unmarkWatched(
+      user.userId,
+      parsePositiveInt(movieIdParam, 'Invalid movie id'),
+    );
   }
 
   @Get('provider/:provider/:id')
@@ -105,10 +239,8 @@ export class MoviesController {
       throw new BadRequestException('Invalid movie id');
     }
 
-    const { createReadStream, size, mimeType } = await this.streamingService.getStreamFile(
-      movieId,
-      quality,
-    );
+    const { createReadStream, size, mimeType } =
+      await this.streamingService.getStreamFile(movieId, quality);
 
     const range = parseRangeHeader(req.headers.range, size);
     const chunkSize = range.end - range.start + 1;
@@ -138,7 +270,11 @@ export class MoviesController {
       throw new BadRequestException('Invalid movie id');
     }
 
-    const subtitle = await this.streamingService.getSubtitleText(movieId, quality, lang);
+    const subtitle = await this.streamingService.getSubtitleText(
+      movieId,
+      quality,
+      lang,
+    );
     res.set({
       'Content-Type': subtitle.mimeType,
       'Cache-Control': 'no-store',
@@ -185,12 +321,29 @@ function parseOptionalNumber(value: string | undefined): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+function assertUserToken(user: JwtUser): void {
+  if (user.type !== 'user') {
+    throw new UnauthorizedException('A user access token is required');
+  }
+}
+
+function parsePositiveInt(value: string, errorMessage: string): number {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    throw new BadRequestException(errorMessage);
+  }
+  return parsed;
+}
+
 interface ByteRange {
   start: number;
   end: number;
 }
 
-function parseRangeHeader(rangeHeader: string | undefined, size: number): ByteRange {
+function parseRangeHeader(
+  rangeHeader: string | undefined,
+  size: number,
+): ByteRange {
   if (size <= 0) {
     return { start: 0, end: 0 };
   }

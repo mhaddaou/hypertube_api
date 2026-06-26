@@ -51,6 +51,9 @@ model User {
   // Comments posted by this user on movies
   comments Comment[]
 
+  // Movies this user has watchlisted or watched
+  userMovies UserMovie[]
+
   // Timestamp of account creation
   createdAt DateTime @default(now())
 
@@ -120,4 +123,42 @@ model Comment {
   @@index([createdAt])
   @@index([movieId, createdAt])
   @@index([userId])
+}
+
+model UserMovie {
+  // Unique identifier
+  id String @id @default(uuid())
+
+  // Foreign key linking this movie state to a User row
+  userId String
+
+  // Provider movie id. Movies are fetched from providers and are not stored locally.
+  movieId Int
+
+  // When present, the user wants to watch this movie later
+  watchlistedAt DateTime?
+
+  // When present, the user has watched this movie
+  watchedAt DateTime?
+
+  // Snapshot data used to render watchlist/watched pages without extra provider calls
+  title      String?
+  year       Int?
+  rating     Float?
+  plot       String?
+  image      String?
+  coverImage String?
+
+  // Cascade delete: if the User is deleted, their movie states are removed too
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Timestamp of row creation
+  createdAt DateTime @default(now())
+
+  // Timestamp of last row update
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, movieId])
+  @@index([userId, watchlistedAt])
+  @@index([userId, watchedAt])
 }

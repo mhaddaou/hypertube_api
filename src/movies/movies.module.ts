@@ -8,6 +8,7 @@ import { StreamingService } from '../streaming/streaming.service';
 import { YtsProvider } from '../providers/yts.provider';
 import { TmdbProvider } from '../providers/tmdb.provider';
 import { JustWatchService } from '../providers/justwatch.service';
+import { UserMoviesService } from './user-movies.service';
 
 @Module({
   controllers: [MoviesController],
@@ -17,6 +18,7 @@ import { JustWatchService } from '../providers/justwatch.service';
     OmdbService,
     TorrentService,
     StreamingService,
+    UserMoviesService,
     YtsProvider,
     TmdbProvider,
     JustWatchService,
