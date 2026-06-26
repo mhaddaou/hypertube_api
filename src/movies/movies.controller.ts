@@ -12,6 +12,7 @@ import {
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
+import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import {
   MovieListPagination,
@@ -31,6 +32,7 @@ interface JwtUser {
   type: 'user' | 'client';
 }
 
+@ApiTags('movies')
 @Controller('movies')
 export class MoviesController {
   constructor(
@@ -40,6 +42,14 @@ export class MoviesController {
   ) {}
 
   @Get()
+  @ApiOperation({ summary: 'List movies' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'offset', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'language', required: false, enum: ['en', 'fr', 'ar'] })
+  @ApiQuery({ name: 'lang', required: false, enum: ['en', 'fr', 'ar'] })
+  @ApiQuery({ name: 'movie_language', required: false, enum: ['en', 'fr', 'ar', 'all', 'any'] })
+  @ApiQuery({ name: 'original_language', required: false, enum: ['en', 'fr', 'ar', 'all', 'any'] })
   async listMovies(
     @Query('page') page: string | undefined,
     @Query('offset') offset: string | undefined,
@@ -62,6 +72,12 @@ export class MoviesController {
   }
 
   @Get('search')
+  @ApiOperation({ summary: 'Search movies by name' })
+  @ApiQuery({ name: 'name', required: true, type: String })
+  @ApiQuery({ name: 'language', required: false, enum: ['en', 'fr', 'ar'] })
+  @ApiQuery({ name: 'lang', required: false, enum: ['en', 'fr', 'ar'] })
+  @ApiQuery({ name: 'movie_language', required: false, enum: ['en', 'fr', 'ar', 'all', 'any'] })
+  @ApiQuery({ name: 'original_language', required: false, enum: ['en', 'fr', 'ar', 'all', 'any'] })
   async searchMovies(
     @Query('name') name: string | undefined,
     @Query('language') language: string | undefined,
@@ -80,6 +96,19 @@ export class MoviesController {
   }
 
   @Get('popular')
+  @ApiOperation({ summary: 'List popular movies' })
+  @ApiQuery({ name: 'type', required: false, type: String })
+  @ApiQuery({ name: 'year', required: false, type: Number })
+  @ApiQuery({ name: 'sort_by', required: false, type: String })
+  @ApiQuery({ name: 'order_by', required: false, type: String })
+  @ApiQuery({ name: 'quality', required: false, type: String })
+  @ApiQuery({ name: 'minimum_rating', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'language', required: false, enum: ['en', 'fr', 'ar'] })
+  @ApiQuery({ name: 'lang', required: false, enum: ['en', 'fr', 'ar'] })
+  @ApiQuery({ name: 'movie_language', required: false, enum: ['en', 'fr', 'ar', 'all', 'any'] })
+  @ApiQuery({ name: 'original_language', required: false, enum: ['en', 'fr', 'ar', 'all', 'any'] })
   async listPopularMovies(
     @Query('type') type: string | undefined,
     @Query('year') year: string | undefined,
@@ -217,6 +246,9 @@ export class MoviesController {
   }
 
   @Get('provider/:provider/:id')
+  @ApiOperation({ summary: 'Get movie details from a specific provider' })
+  @ApiQuery({ name: 'language', required: false, enum: ['en', 'fr', 'ar'] })
+  @ApiQuery({ name: 'lang', required: false, enum: ['en', 'fr', 'ar'] })
   async getMovieFromProvider(
     @Param('provider') provider: string,
     @Param('id') id: string,
@@ -249,6 +281,9 @@ export class MoviesController {
   }
 
   @Get(':id')
+  @ApiOperation({ summary: 'Get movie details' })
+  @ApiQuery({ name: 'language', required: false, enum: ['en', 'fr', 'ar'] })
+  @ApiQuery({ name: 'lang', required: false, enum: ['en', 'fr', 'ar'] })
   async getMovie(
     @Param('id') id: string,
     @Query('language') language: string | undefined,
@@ -265,6 +300,8 @@ export class MoviesController {
   }
 
   @Get(':id/stream')
+  @ApiOperation({ summary: 'Stream a movie file with byte-range support' })
+  @ApiQuery({ name: 'quality', required: false, type: String })
   async streamMovie(
     @Param('id') id: string,
     @Query('quality') quality: string | undefined,
@@ -296,6 +333,9 @@ export class MoviesController {
   }
 
   @Get(':id/subtitles')
+  @ApiOperation({ summary: 'Get subtitle file content for a movie' })
+  @ApiQuery({ name: 'quality', required: false, type: String })
+  @ApiQuery({ name: 'lang', required: false, type: String })
   async getSubtitles(
     @Param('id') id: string,
     @Query('quality') quality: string | undefined,
@@ -320,6 +360,8 @@ export class MoviesController {
   }
 
   @Get(':id/subtitles/list')
+  @ApiOperation({ summary: 'List available subtitles for a movie' })
+  @ApiQuery({ name: 'quality', required: false, type: String })
   async listSubtitles(
     @Param('id') id: string,
     @Query('quality') quality: string | undefined,
@@ -333,6 +375,8 @@ export class MoviesController {
   }
 
   @Get(':id/cache')
+  @ApiOperation({ summary: 'Get download/cache status for a movie' })
+  @ApiQuery({ name: 'quality', required: false, type: String })
   async getCacheStatus(
     @Param('id') id: string,
     @Query('quality') quality: string | undefined,
