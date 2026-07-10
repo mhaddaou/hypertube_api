@@ -522,11 +522,17 @@
         <div class="now-playing-plot" id="nowPlayingPlot"></div>
       </section>
       <div class="note">
-        Ensure the NestJS server is running at http://localhost:5000
+        Ensure the NestJS server is running at <span id="backendUrl"></span>
       </div>
     </div>
 
     <script>
+      // Keep the backend address in one place so every test route uses the
+      // NestJS port configured in backend/.env.
+      const BACKEND_PORT = 5000;
+      const API_BASE_URL = `http://localhost:${BACKEND_PORT}/api`;
+      document.getElementById('backendUrl').textContent = API_BASE_URL;
+
       const movieIdInput = document.getElementById('movieId');
       const qualityInput = document.getElementById('quality');
       const player = document.getElementById('player');
@@ -582,7 +588,7 @@
         const movieId = movieIdInput.value.trim();
         const quality = qualityInput.value.trim();
         const params = quality ? `?quality=${encodeURIComponent(quality)}` : '';
-        return `http://localhost:5000/api/movies/${encodeURIComponent(movieId)}/stream${params}`;
+        return `${API_BASE_URL}/movies/${encodeURIComponent(movieId)}/stream${params}`;
       }
 
       function buildSubtitleUrl(movieId, lang) {
@@ -595,7 +601,7 @@
           params.set('quality', quality);
         }
         params.set('lang', lang);
-        return `http://localhost:5000/api/movies/${encodeURIComponent(movieId)}/subtitles?${params.toString()}`;
+        return `${API_BASE_URL}/movies/${encodeURIComponent(movieId)}/subtitles?${params.toString()}`;
       }
 
       function updateSubtitleTrack(movieId) {
@@ -723,7 +729,7 @@
         updateSuggestionsFooter(true);
         const detailResponses = await Promise.all(
           selected.map((movie) =>
-            fetch(`http://localhost:5000/api/movies/${encodeURIComponent(movie.id)}`)
+            fetch(`${API_BASE_URL}/movies/${encodeURIComponent(movie.id)}`)
               .then((detailResponse) =>
                 detailResponse.ok ? detailResponse.json() : null,
               )
@@ -790,7 +796,7 @@
         suggestionCursor = 0;
         updateSuggestionsFooter(true);
 
-        const response = await fetch('http://localhost:5000/api/movies');
+        const response = await fetch(`${API_BASE_URL}/movies`);
         if (!response.ok) {
           suggestionsList.innerHTML = '<li>Failed to load suggestions.</li>';
           suggestionMovies = [];
@@ -898,7 +904,7 @@
         }
         params.set('limit', '12');
 
-        return `http://localhost:5000/api/movies/popular?${params.toString()}`;
+        return `${API_BASE_URL}/movies/popular?${params.toString()}`;
       }
 
       async function openMovieDetail(movie) {
@@ -906,7 +912,7 @@
           return;
         }
         const response = await fetch(
-          `http://localhost:5000/api/movies/${encodeURIComponent(movie.id)}`,
+          `${API_BASE_URL}/movies/${encodeURIComponent(movie.id)}`,
         );
         const detail = response.ok ? await response.json() : null;
         showSuggestionDetail(mergeMovieDetail(detail, movie));
@@ -1082,7 +1088,7 @@
 
         try {
           const response = await fetch(
-            `http://localhost:5000/api/movies/${encodeURIComponent(movieId)}/cache${params}`,
+            `${API_BASE_URL}/movies/${encodeURIComponent(movieId)}/cache${params}`,
           );
           if (!response.ok) {
             nowPlayingCache.textContent = 'Unknown';
@@ -1115,7 +1121,7 @@
 
         try {
           const response = await fetch(
-            `http://localhost:5000/api/movies/${encodeURIComponent(movieId)}`,
+            `${API_BASE_URL}/movies/${encodeURIComponent(movieId)}`,
           );
           if (!response.ok) {
             nowPlaying.hidden = true;
@@ -1140,7 +1146,7 @@
         searchResultsGrid.innerHTML = '<div>Searching...</div>';
 
         const response = await fetch(
-          `http://localhost:5000/api/movies/search?name=${encodeURIComponent(query)}`,
+          `${API_BASE_URL}/movies/search?name=${encodeURIComponent(query)}`,
         );
         if (!response.ok) {
           searchResultsGrid.innerHTML = '<div>Search failed.</div>';
@@ -1194,7 +1200,7 @@
 
             const provider = encodeURIComponent(baseMovie.provider);
             const providerId = encodeURIComponent(baseMovie.provider_id);
-            fetch(`http://localhost:5000/movies/provider/${provider}/${providerId}/resolve`)
+            fetch(`${API_BASE_URL}/movies/provider/${provider}/${providerId}/resolve`)
               .then((resolveResponse) =>
                 resolveResponse.ok ? resolveResponse.json() : null,
               )
@@ -1204,7 +1210,7 @@
                   return;
                 }
                 return fetch(
-                  `http://localhost:5000/api/movies/provider/${provider}/${providerId}`,
+                  `${API_BASE_URL}/movies/provider/${provider}/${providerId}`,
                 )
                   .then((detailResponse) =>
                     detailResponse.ok ? detailResponse.json() : null,
@@ -1275,7 +1281,7 @@
         const quality = qualityInput.value.trim();
         const params = quality ? `?quality=${encodeURIComponent(quality)}` : '';
         const response = await fetch(
-          `http://localhost:5000/api/movies/${encodeURIComponent(movieId)}/subtitles/list${params}`,
+          `${API_BASE_URL}/movies/${encodeURIComponent(movieId)}/subtitles/list${params}`,
         );
         if (!response.ok) {
           return;

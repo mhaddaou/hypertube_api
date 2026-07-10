@@ -10,6 +10,7 @@ export interface CommentResponse {
   id: string;
   movie_id: number;
   author_username: string;
+  author_profile_picture: string | null;
   date: Date;
   content: string;
 }
@@ -36,7 +37,7 @@ export class CommentsService {
       },
       include: {
         user: {
-          select: { username: true },
+          select: { username: true, profilePicture: true },
         },
       },
     });
@@ -69,7 +70,7 @@ export class CommentsService {
       take,
       include: {
         user: {
-          select: { username: true },
+          select: { username: true, profilePicture: true },
         },
       },
     });
@@ -83,12 +84,13 @@ function mapComment(comment: {
   movieId: number;
   content: string;
   createdAt: Date;
-  user: { username: string };
+  user: { username: string; profilePicture: string | null };
 }): CommentResponse {
   return {
     id: comment.id,
     movie_id: comment.movieId,
     author_username: comment.user.username,
+    author_profile_picture: comment.user.profilePicture,
     date: comment.createdAt,
     content: comment.content,
   };
