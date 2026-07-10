@@ -15,6 +15,18 @@ export interface CommentResponse {
   content: string;
 }
 
+export interface PaginatedCommentsResponse {
+  comments: CommentResponse[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    total_pages: number;
+    has_next_page: boolean;
+    has_previous_page: boolean;
+  };
+}
+
 @Injectable()
 export class CommentsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -62,20 +74,43 @@ export class CommentsService {
     await this.prisma.comment.delete({ where: { id } });
   }
 
-  async findLatest(limit = 20, movieId?: number): Promise<CommentResponse[]> {
+  async findLatest(
+    page = 1,
+    limit = 20,
+    movieId?: number,
+  ): Promise<PaginatedCommentsResponse> {
     const take = Math.min(Math.max(limit, 1), 100);
-    const comments = await this.prisma.comment.findMany({
-      where: movieId ? { movieId } : undefined,
-      orderBy: { createdAt: 'desc' },
-      take,
-      include: {
-        user: {
-          select: { username: true, profilePicture: true },
-        },
-      },
-    });
+    const currentPage = Math.max(page, 1);
+    const where = movieId ? { movieId } : undefined;
 
-    return comments.map(mapComment);
+    const [total, comments] = await this.prisma.$transaction([
+      this.prisma.comment.count({ where }),
+      this.prisma.comment.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (currentPage - 1) * take,
+        take,
+        include: {
+          user: {
+            select: { username: true, profilePicture: true },
+          },
+        },
+      }),
+    ]);
+
+    const totalPages = Math.ceil(total / take);
+
+    return {
+      comments: comments.map(mapComment),
+      pagination: {
+        page: currentPage,
+        limit: take,
+        total,
+        total_pages: totalPages,
+        has_next_page: currentPage < totalPages,
+        has_previous_page: currentPage > 1 && totalPages > 0,
+      },
+    };
   }
 }
 

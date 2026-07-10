@@ -11,7 +11,7 @@ import {
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
-import { ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiQuery, ApiSecurity, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { CommentsService } from './comments.service.js';
@@ -64,11 +64,16 @@ export class CommentsController {
 
   @Get('comments')
   @ApiOperation({ summary: 'List latest comments' })
+  @ApiQuery({ name: 'movie_id', required: false, type: Number })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
   findLatest(
+    @Query('page') page: string | undefined,
     @Query('limit') limit: string | undefined,
     @Query('movie_id') movieId: string | undefined,
   ) {
     return this.commentsService.findLatest(
+      parseOptionalPositiveInt(page, 1, 'Invalid page'),
       parseOptionalPositiveInt(limit, 20, 'Invalid limit'),
       parseOptionalPositiveInt(movieId, undefined, 'Invalid movie id'),
     );
