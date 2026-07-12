@@ -402,13 +402,54 @@ function pickTorrent(torrents: YtsTorrent[], quality?: string): YtsTorrent | nul
   }
 
   const normalizedQuality = quality?.toLowerCase();
-  const qualityMatch = normalizedQuality
-    ? torrents.find((torrent) => torrent.quality.toLowerCase() === normalizedQuality)
+  const ranked = rankTorrentsByAvailability(torrents);
+  const seeded = ranked.filter(hasSeeds);
+  const requestedSeeded = normalizedQuality
+    ? seeded.find((torrent) => matchesQuality(torrent, normalizedQuality))
     : null;
-  const preferred720p = torrents.find((torrent) => torrent.quality === '720p');
-  const bySeeds = [...torrents].sort((a, b) => (b.seeds || 0) - (a.seeds || 0))[0];
+  const seeded720p = seeded.find((torrent) => matchesQuality(torrent, '720p'));
+  const bestSeeded = seeded[0] ?? null;
+  const requestedAny = normalizedQuality
+    ? ranked.find((torrent) => matchesQuality(torrent, normalizedQuality))
+    : null;
+  const any720p = ranked.find((torrent) => matchesQuality(torrent, '720p'));
 
-  return qualityMatch ?? preferred720p ?? bySeeds ?? null;
+  return (
+    requestedSeeded ??
+    seeded720p ??
+    bestSeeded ??
+    requestedAny ??
+    any720p ??
+    ranked[0] ??
+    null
+  );
+}
+
+function rankTorrentsByAvailability(torrents: YtsTorrent[]): YtsTorrent[] {
+  return [...torrents].sort((a, b) => {
+    const seedDiff = (b.seeds || 0) - (a.seeds || 0);
+    if (seedDiff !== 0) {
+      return seedDiff;
+    }
+
+    const peerDiff = (b.peers || 0) - (a.peers || 0);
+    if (peerDiff !== 0) {
+      return peerDiff;
+    }
+
+    return (
+      (a.size_bytes || Number.MAX_SAFE_INTEGER) -
+      (b.size_bytes || Number.MAX_SAFE_INTEGER)
+    );
+  });
+}
+
+function hasSeeds(torrent: YtsTorrent): boolean {
+  return (torrent.seeds || 0) > 0;
+}
+
+function matchesQuality(torrent: YtsTorrent, quality: string): boolean {
+  return torrent.quality.toLowerCase() === quality;
 }
 
 function buildMagnet(hash: string, title: string): string {
