@@ -112,23 +112,15 @@ export class StreamingService {
 
   async getSubtitleText(
     movieId: number,
-    quality?: string,
+    _quality?: string,
     lang?: string,
   ): Promise<SubtitleSelection> {
     await fs.mkdir(this.storagePath, { recursive: true });
 
-    const movie = await this.ytsService.getMovieDetails(movieId);
-    const torrentInfo = pickTorrent(movie.torrents ?? [], quality);
-    if (!torrentInfo) {
-      throw new NotFoundException('No torrent available for movie');
+    const torrent = this.torrentService.getReadyTorrent(String(movieId));
+    if (!torrent) {
+      throw new NotFoundException('No subtitle file found');
     }
-
-    const magnetUri = buildMagnet(torrentInfo.hash, movie.title);
-    const torrent = await this.torrentService.getTorrent(
-      String(movieId),
-      magnetUri,
-      this.storagePath,
-    );
 
     const subtitles = listSubtitleFiles(torrent.files);
     const subtitleInfo = pickSubtitleFile(subtitles, lang);
@@ -158,22 +150,14 @@ export class StreamingService {
 
   async listSubtitles(
     movieId: number,
-    quality?: string,
+    _quality?: string,
   ): Promise<Array<{ code: string; label: string }>> {
     await fs.mkdir(this.storagePath, { recursive: true });
 
-    const movie = await this.ytsService.getMovieDetails(movieId);
-    const torrentInfo = pickTorrent(movie.torrents ?? [], quality);
-    if (!torrentInfo) {
-      throw new NotFoundException('No torrent available for movie');
+    const torrent = this.torrentService.getReadyTorrent(String(movieId));
+    if (!torrent) {
+      return [];
     }
-
-    const magnetUri = buildMagnet(torrentInfo.hash, movie.title);
-    const torrent = await this.torrentService.getTorrent(
-      String(movieId),
-      magnetUri,
-      this.storagePath,
-    );
 
     const subtitles = listSubtitleFiles(torrent.files);
     const deduped = new Map<string, SubtitleInfo>();

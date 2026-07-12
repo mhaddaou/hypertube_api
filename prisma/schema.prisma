@@ -141,6 +141,15 @@ model UserMovie {
   // When present, the user has watched this movie
   watchedAt DateTime?
 
+  // Last saved playback position for continue-watching/resume
+  playbackPositionSeconds Float @default(0)
+
+  // Movie duration reported by the player when playback progress is saved
+  playbackDurationSeconds Float?
+
+  // Timestamp of the last playback progress update
+  playbackUpdatedAt DateTime?
+
   // Snapshot data used to render watchlist/watched pages without extra provider calls
   title      String?
   year       Int?
@@ -161,4 +170,5 @@ model UserMovie {
   @@unique([userId, movieId])
   @@index([userId, watchlistedAt])
   @@index([userId, watchedAt])
+  @@index([userId, playbackUpdatedAt])
 }

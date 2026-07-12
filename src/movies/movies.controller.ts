@@ -326,6 +326,7 @@ export class MoviesController {
       'Content-Length': chunkSize,
       'Content-Type': mimeType,
     });
+    res.flushHeaders();
 
     const stream = createReadStream({ start: range.start, end: range.end });
     stream.on('error', () => res.destroy());

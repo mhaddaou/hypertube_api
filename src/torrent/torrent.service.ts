@@ -48,6 +48,14 @@ export class TorrentService {
     return this.torrents.get(movieId) ?? null;
   }
 
+  getReadyTorrent(movieId: string): Torrent | null {
+    const torrent = this.getActiveTorrent(movieId);
+    if (!torrent) {
+      return null;
+    }
+    return (torrent as unknown as { ready?: boolean }).ready ? torrent : null;
+  }
+
   private waitForReady(torrent: Torrent): Promise<Torrent> {
     if ((torrent as unknown as { ready?: boolean }).ready) {
       return Promise.resolve(torrent);
