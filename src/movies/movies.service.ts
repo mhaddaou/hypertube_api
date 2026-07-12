@@ -9,7 +9,7 @@ import {
 import { TmdbProvider } from '../providers/tmdb.provider';
 import { YtsProvider } from '../providers/yts.provider';
 import { StreamingService } from '../streaming/streaming.service';
-import { YtsMovieSummary } from '../yts/yts.types';
+import { YtsMovieSummary, YtsTorrent } from '../yts/yts.types';
 import {
   YtsListMoviesOptions,
   YtsOrderBy,
@@ -28,7 +28,9 @@ export class MoviesService {
   ) {}
 
   async listMovies(pagination: MovieListPagination = {}) {
-    const movies = await this.fetchPaginatedMovies(pagination);
+    const movies = filterStreamableYtsMovies(
+      await this.fetchPaginatedMovies(pagination),
+    );
     const summaries = await Promise.all(
       movies.map((movie) =>
         this.buildYtsSummary(movie, pagination.responseLanguage),
@@ -71,8 +73,9 @@ export class MoviesService {
       year && !filters.movieLanguage
         ? movies.filter((movie) => movie.year === year).slice(0, limit)
         : movies;
+    const streamable = filterStreamableYtsMovies(filtered);
     const summaries = await Promise.all(
-      filtered.map((movie) =>
+      streamable.map((movie) =>
         this.buildYtsSummary(movie, filters.responseLanguage),
       ),
     );
@@ -82,9 +85,11 @@ export class MoviesService {
   }
 
   async searchMovies(name: string, options: MovieLanguageOptions = {}) {
-    const ytsMovies = filterYtsMoviesByLanguage(
-      await this.ytsService.searchMovies(name),
-      options.movieLanguage,
+    const ytsMovies = filterStreamableYtsMovies(
+      filterYtsMoviesByLanguage(
+        await this.ytsService.searchMovies(name),
+        options.movieLanguage,
+      ),
     );
 
     const summaries = await Promise.all(
@@ -119,6 +124,7 @@ export class MoviesService {
       year,
     );
     const cacheStatus = await this.streamingService.getCacheStatus(movieId);
+    const streamAvailable = cacheStatus.cached || hasStreamableYtsMovie(movie);
 
     return {
       provider: 'yts',
@@ -149,6 +155,7 @@ export class MoviesService {
       cover_image:
         localized?.backdrop ?? localized?.image ?? coverImage ?? null,
       cache_status: cacheStatus,
+      stream_available: streamAvailable,
       sources: ['yts', 'omdb', 'justwatch'],
       availability,
     };
@@ -323,7 +330,8 @@ export class MoviesService {
         ...movies.filter(
           (movie) =>
             (!language || hasMovieLanguage(movie.language, language)) &&
-            (!year || movie.year === year),
+            (!year || movie.year === year) &&
+            hasStreamableYtsMovie(movie),
         ),
       );
 
@@ -372,12 +380,14 @@ export class MoviesService {
       null;
     if (imdbId) {
       const byImdb = await this.ytsService.findMovieByImdbId(imdbId);
-      if (byImdb) {
+      if (byImdb && hasStreamableYtsMovie(byImdb)) {
         return byImdb.id;
       }
     }
 
-    const ytsMatches = await this.ytsService.searchMovies(tmdbDetails.name);
+    const ytsMatches = filterStreamableYtsMovies(
+      await this.ytsService.searchMovies(tmdbDetails.name),
+    );
     const match = pickBestYtsMatch(ytsMatches, tmdbDetails.year ?? null);
     return match?.id ?? null;
   }
@@ -415,6 +425,7 @@ export interface MovieSummary {
   likes?: number | null;
   sources: string[];
   cache_status?: unknown;
+  stream_available?: boolean;
 }
 
 export interface PopularMovieFilters {
@@ -496,6 +507,7 @@ function buildYtsSummary(
       typeof movie.download_count === 'number' ? movie.download_count : null,
     likes: typeof movie.like_count === 'number' ? movie.like_count : null,
     sources: ['yts'],
+    stream_available: hasStreamableYtsMovie(movie),
   };
 }
 
@@ -555,6 +567,23 @@ function filterYtsMoviesByLanguage(
     return movies;
   }
   return movies.filter((movie) => hasMovieLanguage(movie.language, language));
+}
+
+function filterStreamableYtsMovies(
+  movies: YtsMovieSummary[],
+): YtsMovieSummary[] {
+  return movies.filter(hasStreamableYtsMovie);
+}
+
+function hasStreamableYtsMovie(movie: YtsMovieSummary): boolean {
+  if (!Array.isArray(movie.torrents)) {
+    return true;
+  }
+  return movie.torrents.some(hasTorrentAvailability);
+}
+
+function hasTorrentAvailability(torrent: YtsTorrent): boolean {
+  return (torrent.seeds || 0) > 0 || (torrent.peers || 0) > 0;
 }
 
 function hasMovieLanguage(

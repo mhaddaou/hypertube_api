@@ -23,6 +23,7 @@ export interface YtsMovieSummary {
   small_cover_image?: string;
   medium_cover_image?: string;
   large_cover_image?: string;
+  torrents?: YtsTorrent[];
 }
 
 export interface YtsMovieDetailsResponse {

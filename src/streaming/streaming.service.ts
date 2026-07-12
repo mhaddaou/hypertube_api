@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import * as fsSync from 'fs';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -81,8 +85,14 @@ export class StreamingService {
     }
 
     const movie = await this.ytsService.getMovieDetails(movieId);
-    const torrentInfo = pickTorrent(movie.torrents ?? [], quality);
+    const torrents = movie.torrents ?? [];
+    const torrentInfo = pickTorrent(torrents, quality);
     if (!torrentInfo) {
+      if (torrents.length > 0 && !hasAvailableTorrent(torrents)) {
+        throw new ServiceUnavailableException(
+          'No active seeds or peers available for this movie',
+        );
+      }
       throw new NotFoundException('No torrent available for movie');
     }
 
@@ -403,16 +413,21 @@ function pickTorrent(torrents: YtsTorrent[], quality?: string): YtsTorrent | nul
 
   const normalizedQuality = quality?.toLowerCase();
   const ranked = rankTorrentsByAvailability(torrents);
-  const seeded = ranked.filter(hasSeeds);
+  const available = ranked.filter(hasAvailability);
+  if (!available.length) {
+    return null;
+  }
+
+  const seeded = available.filter(hasSeeds);
   const requestedSeeded = normalizedQuality
     ? seeded.find((torrent) => matchesQuality(torrent, normalizedQuality))
     : null;
   const seeded720p = seeded.find((torrent) => matchesQuality(torrent, '720p'));
   const bestSeeded = seeded[0] ?? null;
   const requestedAny = normalizedQuality
-    ? ranked.find((torrent) => matchesQuality(torrent, normalizedQuality))
+    ? available.find((torrent) => matchesQuality(torrent, normalizedQuality))
     : null;
-  const any720p = ranked.find((torrent) => matchesQuality(torrent, '720p'));
+  const any720p = available.find((torrent) => matchesQuality(torrent, '720p'));
 
   return (
     requestedSeeded ??
@@ -420,7 +435,7 @@ function pickTorrent(torrents: YtsTorrent[], quality?: string): YtsTorrent | nul
     bestSeeded ??
     requestedAny ??
     any720p ??
-    ranked[0] ??
+    available[0] ??
     null
   );
 }
@@ -446,6 +461,14 @@ function rankTorrentsByAvailability(torrents: YtsTorrent[]): YtsTorrent[] {
 
 function hasSeeds(torrent: YtsTorrent): boolean {
   return (torrent.seeds || 0) > 0;
+}
+
+function hasAvailability(torrent: YtsTorrent): boolean {
+  return (torrent.seeds || 0) > 0 || (torrent.peers || 0) > 0;
+}
+
+function hasAvailableTorrent(torrents: YtsTorrent[]): boolean {
+  return torrents.some(hasAvailability);
 }
 
 function matchesQuality(torrent: YtsTorrent, quality: string): boolean {
