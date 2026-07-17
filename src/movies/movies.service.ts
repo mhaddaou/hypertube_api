@@ -81,6 +81,25 @@ export class MoviesService {
     );
   }
 
+  async listCachedMovies(limit?: number, responseLanguage?: MovieLanguage) {
+    const cachedMovies = await this.streamingService.listCachedMovies(
+      clampNumber(limit, 1, 50, 12),
+    );
+    const summaries = await Promise.all(
+      cachedMovies.map(async ({ movieId }) => {
+        try {
+          const movie = await this.ytsService.getMovieDetails(movieId);
+          const summary = await this.buildYtsSummary(movie, responseLanguage);
+          return this.attachCacheStatus(summary);
+        } catch {
+          return null;
+        }
+      }),
+    );
+
+    return summaries.filter((summary): summary is MovieSummary => summary !== null);
+  }
+
   async searchMovies(name: string, options: MovieLanguageOptions = {}) {
     const ytsMovies = filterYtsMoviesByLanguage(
       await this.ytsService.searchMovies(name),

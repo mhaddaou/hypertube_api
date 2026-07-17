@@ -58,6 +58,13 @@ export interface CacheStatus {
   completedAt: string | null;
 }
 
+export interface CachedMovieInfo {
+  movieId: number;
+  quality: string | null;
+  size: number | null;
+  completedAt: string | null;
+}
+
 @Injectable()
 export class StreamingService {
   private storagePath = path.join(process.cwd(), 'storage');
@@ -215,6 +222,43 @@ export class StreamingService {
       quality: null,
       completedAt: null,
     };
+  }
+
+  async listCachedMovies(limit = 12): Promise<CachedMovieInfo[]> {
+    await fs.mkdir(this.storagePath, { recursive: true });
+    await this.ensureCacheIndexLoaded();
+
+    const max = Math.min(Math.max(Math.trunc(limit) || 12, 1), 50);
+    const entries = Array.from(this.cacheIndex.values()).sort(
+      (a, b) => cacheTimestamp(b.completedAt) - cacheTimestamp(a.completedAt),
+    );
+    const seen = new Set<number>();
+    const cachedMovies: CachedMovieInfo[] = [];
+
+    for (const entry of entries) {
+      if (seen.has(entry.movieId)) {
+        continue;
+      }
+
+      const cached = await this.resolveCachedEntry(entry.movieId, entry.quality);
+      if (!cached) {
+        continue;
+      }
+
+      seen.add(entry.movieId);
+      cachedMovies.push({
+        movieId: entry.movieId,
+        quality: entry.quality ?? null,
+        size: cached.stat.size,
+        completedAt: entry.completedAt ?? null,
+      });
+
+      if (cachedMovies.length >= max) {
+        break;
+      }
+    }
+
+    return cachedMovies;
   }
 
   private async ensureCacheIndexLoaded(): Promise<void> {
@@ -375,6 +419,14 @@ export class StreamingService {
     torrent.on('download', checkCompletion);
     torrent.on('done', checkCompletion);
   }
+}
+
+function cacheTimestamp(value?: string): number {
+  if (!value) {
+    return 0;
+  }
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : 0;
 }
 
 function isTorrentFileComplete(file: TorrentFile): boolean {

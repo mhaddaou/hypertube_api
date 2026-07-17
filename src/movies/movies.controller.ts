@@ -147,6 +147,23 @@ export class MoviesController {
     return this.moviesService.listPopularMovies(filters);
   }
 
+  @Get('cached')
+  @ApiOperation({ summary: 'List cached movies' })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'language', required: false, enum: ['en', 'fr', 'ar'] })
+  @ApiQuery({ name: 'lang', required: false, enum: ['en', 'fr', 'ar'] })
+  async listCachedMovies(
+    @Query('limit') limit: string | undefined,
+    @Query('language') language: string | undefined,
+    @Query('lang') lang: string | undefined,
+  ): Promise<MovieSummary[]> {
+    const languageOptions = buildLanguageOptions(language ?? lang, undefined);
+    return this.moviesService.listCachedMovies(
+      parseOptionalNumber(limit),
+      languageOptions.responseLanguage,
+    );
+  }
+
   @Get('watchlist')
   @UseGuards(JwtAuthGuard)
   listWatchlist(@CurrentUser() user: JwtUser) {
