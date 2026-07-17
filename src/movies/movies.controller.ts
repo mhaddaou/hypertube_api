@@ -46,6 +46,9 @@ export class MoviesController {
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'offset', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'genre', required: false, type: String })
+  @ApiQuery({ name: 'category', required: false, type: String })
+  @ApiQuery({ name: 'type', required: false, type: String })
   @ApiQuery({ name: 'language', required: false, enum: ['en', 'fr', 'ar'] })
   @ApiQuery({ name: 'lang', required: false, enum: ['en', 'fr', 'ar'] })
   @ApiQuery({ name: 'movie_language', required: false, enum: ['en', 'fr', 'ar', 'all', 'any'] })
@@ -54,6 +57,9 @@ export class MoviesController {
     @Query('page') page: string | undefined,
     @Query('offset') offset: string | undefined,
     @Query('limit') limit: string | undefined,
+    @Query('genre') genre: string | undefined,
+    @Query('category') category: string | undefined,
+    @Query('type') type: string | undefined,
     @Query('language') language: string | undefined,
     @Query('lang') lang: string | undefined,
     @Query('movie_language') movieLanguage: string | undefined,
@@ -63,6 +69,7 @@ export class MoviesController {
       page: parseOptionalNumber(page),
       offset: parseOptionalNumber(offset),
       limit: parseOptionalNumber(limit),
+      genre: genre ?? category ?? type,
       ...buildLanguageOptions(
         language ?? lang,
         movieLanguage ?? originalLanguage,

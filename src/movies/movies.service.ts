@@ -283,12 +283,15 @@ export class MoviesService {
     const limit = clampNumber(pagination.limit, 1, 50, 20);
     const page = clampNumber(pagination.page, 1, 1000, 1);
     const offset = normalizeOffset(pagination.offset, (1000 - 1) * limit);
+    const genre = normalizeGenre(pagination.genre);
+    const ytsOptions: YtsListMoviesOptions = genre ? { genre } : {};
 
-    if (pagination.movieLanguage) {
+    if (pagination.movieLanguage || (typeof offset === 'number' && genre)) {
       return this.fetchFilteredYtsMovies({
         limit,
         offset: offset ?? (page - 1) * limit,
         language: pagination.movieLanguage,
+        ytsOptions,
       });
     }
 
@@ -296,7 +299,7 @@ export class MoviesService {
       return this.fetchMoviesByOffset(offset, limit);
     }
 
-    return this.ytsService.listMovies({ limit, page });
+    return this.ytsService.listMovies({ ...ytsOptions, limit, page });
   }
 
   private async fetchFilteredYtsMovies({
@@ -437,6 +440,7 @@ export interface MovieListPagination {
   page?: number;
   offset?: number;
   limit?: number;
+  genre?: string;
   responseLanguage?: MovieLanguage;
   movieLanguage?: MovieLanguage;
 }
@@ -669,12 +673,47 @@ function normalizeMinimumRating(value?: number): number | undefined {
   return Math.min(Math.max(Math.trunc(value), 0), 9);
 }
 
+const YTS_GENRE_ALIASES: Record<string, string> = {
+  action: 'Action',
+  adventure: 'Adventure',
+  animation: 'Animation',
+  biography: 'Biography',
+  comedy: 'Comedy',
+  crime: 'Crime',
+  documentary: 'Documentary',
+  drama: 'Drama',
+  family: 'Family',
+  fantasy: 'Fantasy',
+  filmnoir: 'Film-Noir',
+  gameshow: 'Game-Show',
+  history: 'History',
+  horror: 'Horror',
+  music: 'Music',
+  musical: 'Musical',
+  mystery: 'Mystery',
+  news: 'News',
+  realitytv: 'Reality-TV',
+  romance: 'Romance',
+  scifi: 'Sci-Fi',
+  sport: 'Sport',
+  talkshow: 'Talk-Show',
+  thriller: 'Thriller',
+  war: 'War',
+  western: 'Western',
+};
+
 function normalizeGenre(value?: string): string | undefined {
   const normalized = value?.trim();
-  if (!normalized || normalized.toLowerCase() === 'all') {
+  if (!normalized) {
     return undefined;
   }
-  return normalized;
+
+  const aliasKey = normalized.toLowerCase().replace(/[\s_-]/g, '');
+  if (aliasKey === 'all' || aliasKey === 'any') {
+    return undefined;
+  }
+
+  return YTS_GENRE_ALIASES[aliasKey] ?? normalized;
 }
 
 function normalizeOrder(value?: string): YtsOrderBy {
