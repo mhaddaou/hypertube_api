@@ -481,16 +481,7 @@ function buildTorrentKey(movieId: number, torrent: YtsTorrent): string {
 }
 
 function getTorrentSource(torrent: YtsTorrent, title: string): string {
-  return normalizeTorrentUrl(torrent.url) ?? buildMagnet(torrent.hash, title);
-}
-
-function normalizeTorrentUrl(url?: string): string | null {
-  const trimmed = url?.trim();
-  if (!trimmed) {
-    return null;
-  }
-
-  return /^https?:\/\//i.test(trimmed) ? trimmed : null;
+  return buildMagnet(torrent.hash, title);
 }
 
 function buildMagnet(hash: string, title: string): string {

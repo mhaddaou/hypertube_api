@@ -317,6 +317,16 @@ export class MoviesController {
       await this.streamingService.getStreamFile(movieId, quality);
 
     const range = parseRangeHeader(req.headers.range, size);
+    if (!range) {
+      res.status(416);
+      res.set({
+        'Content-Range': `bytes */${size}`,
+        'Accept-Ranges': 'bytes',
+      });
+      res.end();
+      return;
+    }
+
     const chunkSize = range.end - range.start + 1;
 
     res.status(206);
@@ -491,42 +501,59 @@ interface ByteRange {
 function parseRangeHeader(
   rangeHeader: string | undefined,
   size: number,
-): ByteRange {
+): ByteRange | null {
   if (size <= 0) {
-    return { start: 0, end: 0 };
+    return null;
   }
 
   const defaultChunkSize = 1024 * 1024;
   const defaultEnd = Math.min(defaultChunkSize - 1, size - 1);
+  const defaultRange = { start: 0, end: defaultEnd };
   if (!rangeHeader) {
-    return { start: 0, end: defaultEnd };
+    return defaultRange;
   }
 
-  const match = /bytes=(\d*)-(\d*)/.exec(rangeHeader);
+  const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader.trim());
   if (!match) {
-    return { start: 0, end: defaultEnd };
+    return defaultRange;
   }
 
-  const startValue = match[1] ? Number(match[1]) : Number.NaN;
-  const endValue = match[2] ? Number(match[2]) : Number.NaN;
+  const startPart = match[1];
+  const endPart = match[2];
+  if (!startPart && !endPart) {
+    return defaultRange;
+  }
 
-  let start = Number.isFinite(startValue) && startValue >= 0 ? startValue : 0;
-  let end = Number.isFinite(endValue)
-    ? endValue
-    : Math.min(start + defaultChunkSize - 1, size - 1);
+  if (!startPart) {
+    const suffixLength = Number(endPart);
+    if (!Number.isSafeInteger(suffixLength) || suffixLength <= 0) {
+      return defaultRange;
+    }
+    return {
+      start: Math.max(size - suffixLength, 0),
+      end: size - 1,
+    };
+  }
 
+  const start = Number(startPart);
+  if (!Number.isSafeInteger(start) || start < 0) {
+    return defaultRange;
+  }
   if (start >= size) {
-    start = 0;
-    end = defaultEnd;
+    return null;
   }
 
-  if (end >= size) {
-    end = size - 1;
+  if (!endPart) {
+    return {
+      start,
+      end: Math.min(start + defaultChunkSize - 1, size - 1),
+    };
   }
 
-  if (end < start) {
-    end = Math.min(start + defaultChunkSize - 1, size - 1);
+  const requestedEnd = Number(endPart);
+  if (!Number.isSafeInteger(requestedEnd) || requestedEnd < start) {
+    return null;
   }
-
+  const end = Math.min(requestedEnd, size - 1);
   return { start, end };
 }
