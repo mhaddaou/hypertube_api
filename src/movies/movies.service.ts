@@ -568,11 +568,7 @@ function hasStreamableYtsMovie(movie: YtsMovieSummary): boolean {
   if (!Array.isArray(movie.torrents)) {
     return true;
   }
-  return movie.torrents.some(hasTorrentAvailability);
-}
-
-function hasTorrentAvailability(torrent: YtsTorrent): boolean {
-  return (torrent.seeds || 0) > 0 || (torrent.peers || 0) > 0;
+  return movie.torrents.some((torrent) => Boolean(torrent.hash || torrent.url));
 }
 
 function hasMovieLanguage(
