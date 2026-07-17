@@ -28,9 +28,7 @@ export class MoviesService {
   ) {}
 
   async listMovies(pagination: MovieListPagination = {}) {
-    const movies = filterStreamableYtsMovies(
-      await this.fetchPaginatedMovies(pagination),
-    );
+    const movies = await this.fetchPaginatedMovies(pagination);
     const summaries = await Promise.all(
       movies.map((movie) =>
         this.buildYtsSummary(movie, pagination.responseLanguage),
@@ -73,9 +71,8 @@ export class MoviesService {
       year && !filters.movieLanguage
         ? movies.filter((movie) => movie.year === year).slice(0, limit)
         : movies;
-    const streamable = filterStreamableYtsMovies(filtered);
     const summaries = await Promise.all(
-      streamable.map((movie) =>
+      filtered.map((movie) =>
         this.buildYtsSummary(movie, filters.responseLanguage),
       ),
     );
@@ -85,11 +82,9 @@ export class MoviesService {
   }
 
   async searchMovies(name: string, options: MovieLanguageOptions = {}) {
-    const ytsMovies = filterStreamableYtsMovies(
-      filterYtsMoviesByLanguage(
-        await this.ytsService.searchMovies(name),
-        options.movieLanguage,
-      ),
+    const ytsMovies = filterYtsMoviesByLanguage(
+      await this.ytsService.searchMovies(name),
+      options.movieLanguage,
     );
 
     const summaries = await Promise.all(
@@ -330,8 +325,7 @@ export class MoviesService {
         ...movies.filter(
           (movie) =>
             (!language || hasMovieLanguage(movie.language, language)) &&
-            (!year || movie.year === year) &&
-            hasStreamableYtsMovie(movie),
+            (!year || movie.year === year),
         ),
       );
 
@@ -380,14 +374,12 @@ export class MoviesService {
       null;
     if (imdbId) {
       const byImdb = await this.ytsService.findMovieByImdbId(imdbId);
-      if (byImdb && hasStreamableYtsMovie(byImdb)) {
+      if (byImdb) {
         return byImdb.id;
       }
     }
 
-    const ytsMatches = filterStreamableYtsMovies(
-      await this.ytsService.searchMovies(tmdbDetails.name),
-    );
+    const ytsMatches = await this.ytsService.searchMovies(tmdbDetails.name);
     const match = pickBestYtsMatch(ytsMatches, tmdbDetails.year ?? null);
     return match?.id ?? null;
   }
@@ -494,7 +486,10 @@ function buildYtsSummary(
     year,
     rating,
     imdb_rating: rating,
-    runtime: typeof movie.runtime === 'number' && movie.runtime > 0 ? movie.runtime : null,
+    runtime:
+      typeof movie.runtime === 'number' && movie.runtime > 0
+        ? movie.runtime
+        : null,
     plot: parseMoviePlot(movie),
     language: movie.language ?? null,
     original_language: movie.language ?? null,
@@ -567,12 +562,6 @@ function filterYtsMoviesByLanguage(
     return movies;
   }
   return movies.filter((movie) => hasMovieLanguage(movie.language, language));
-}
-
-function filterStreamableYtsMovies(
-  movies: YtsMovieSummary[],
-): YtsMovieSummary[] {
-  return movies.filter(hasStreamableYtsMovie);
 }
 
 function hasStreamableYtsMovie(movie: YtsMovieSummary): boolean {

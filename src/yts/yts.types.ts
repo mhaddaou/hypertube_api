@@ -52,6 +52,7 @@ export interface YtsMovieDetails {
 }
 
 export interface YtsTorrent {
+  url?: string;
   hash: string;
   quality: string;
   type?: string;

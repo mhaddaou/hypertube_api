@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { Torrent } from 'webtorrent';
 
 type WebTorrentClient = {
-  add: (magnetUri: string, opts: { path: string }) => Torrent;
+  add: (torrentId: string, opts: { path: string }) => Torrent;
 };
 type WebTorrentConstructor = new () => WebTorrentClient;
 
@@ -12,13 +12,17 @@ export class TorrentService {
   private torrents = new Map<string, Torrent>();
   private pending = new Map<string, Promise<Torrent>>();
 
-  async getTorrent(movieId: string, magnetUri: string, storagePath: string): Promise<Torrent> {
-    const existing = this.torrents.get(movieId);
+  async getTorrent(
+    torrentKey: string,
+    torrentId: string,
+    storagePath: string,
+  ): Promise<Torrent> {
+    const existing = this.torrents.get(torrentKey);
     if (existing) {
       return this.waitForReady(existing);
     }
 
-    const pending = this.pending.get(movieId);
+    const pending = this.pending.get(torrentKey);
     if (pending) {
       return pending;
     }
@@ -26,26 +30,38 @@ export class TorrentService {
     const promise = this.getClient().then(
       (client) =>
         new Promise<Torrent>((resolve, reject) => {
-          const torrent = client.add(magnetUri, { path: storagePath });
-          this.torrents.set(movieId, torrent);
+          const torrent = client.add(torrentId, { path: storagePath });
+          this.torrents.set(torrentKey, torrent);
           torrent.once('ready', () => {
-            this.pending.delete(movieId);
+            this.pending.delete(torrentKey);
             resolve(torrent);
           });
           torrent.once('error', (error: Error) => {
-            this.torrents.delete(movieId);
-            this.pending.delete(movieId);
+            this.torrents.delete(torrentKey);
+            this.pending.delete(torrentKey);
             reject(error);
           });
         }),
     );
 
-    this.pending.set(movieId, promise);
+    this.pending.set(torrentKey, promise);
     return promise;
   }
 
-  getActiveTorrent(movieId: string): Torrent | null {
-    return this.torrents.get(movieId) ?? null;
+  getActiveTorrent(torrentKeyOrMovieId: string): Torrent | null {
+    const exact = this.torrents.get(torrentKeyOrMovieId);
+    if (exact) {
+      return exact;
+    }
+
+    const moviePrefix = `${torrentKeyOrMovieId}:`;
+    for (const [torrentKey, torrent] of this.torrents.entries()) {
+      if (torrentKey.startsWith(moviePrefix)) {
+        return torrent;
+      }
+    }
+
+    return null;
   }
 
   getReadyTorrent(movieId: string): Torrent | null {
@@ -71,7 +87,7 @@ export class TorrentService {
     if (!this.clientPromise) {
       const importWebTorrent = new Function(
         'modulePath',
-        'return import(modulePath)'
+        'return import(modulePath)',
       ) as (modulePath: string) => Promise<{ default?: WebTorrentConstructor }>;
 
       this.clientPromise = importWebTorrent('webtorrent').then((mod) => {

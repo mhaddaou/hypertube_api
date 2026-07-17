@@ -96,10 +96,11 @@ export class StreamingService {
       throw new NotFoundException('No torrent available for movie');
     }
 
-    const magnetUri = buildMagnet(torrentInfo.hash, movie.title);
+    const torrentSource = getTorrentSource(torrentInfo, movie.title);
+    const torrentKey = buildTorrentKey(movieId, torrentInfo);
     const torrent = await this.torrentService.getTorrent(
-      String(movieId),
-      magnetUri,
+      torrentKey,
+      torrentSource,
       this.storagePath,
     );
 
@@ -379,7 +380,7 @@ export class StreamingService {
 
     // Check immediately in case it's already complete
     checkCompletion();
-    
+
     // Also listen for future events
     torrent.on('download', checkCompletion);
     torrent.on('done', checkCompletion);
@@ -392,17 +393,17 @@ function isTorrentFileComplete(file: TorrentFile): boolean {
     length?: number;
     progress?: number;
   };
-  
+
   // Check progress first (most reliable)
   if (typeof info.progress === 'number') {
     return info.progress >= 0.99999; // Use 99.999% to account for floating point precision
   }
-  
+
   // Check downloaded vs length
   if (typeof info.downloaded === 'number' && typeof info.length === 'number') {
     return info.downloaded >= info.length * 0.99999;
   }
-  
+
   return false;
 }
 
@@ -473,6 +474,23 @@ function hasAvailableTorrent(torrents: YtsTorrent[]): boolean {
 
 function matchesQuality(torrent: YtsTorrent, quality: string): boolean {
   return torrent.quality.toLowerCase() === quality;
+}
+
+function buildTorrentKey(movieId: number, torrent: YtsTorrent): string {
+  return `${movieId}:${torrent.hash.toLowerCase()}:${torrent.quality.toLowerCase()}`;
+}
+
+function getTorrentSource(torrent: YtsTorrent, title: string): string {
+  return normalizeTorrentUrl(torrent.url) ?? buildMagnet(torrent.hash, title);
+}
+
+function normalizeTorrentUrl(url?: string): string | null {
+  const trimmed = url?.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  return /^https?:\/\//i.test(trimmed) ? trimmed : null;
 }
 
 function buildMagnet(hash: string, title: string): string {
