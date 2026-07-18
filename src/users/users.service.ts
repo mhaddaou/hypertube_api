@@ -24,17 +24,43 @@ export class UsersService {
     return users;
   }
 
-  async findById(
-    id: string,
-    requesterId: string,
-  ) {
+  async findById(id: string, requesterId: string) {
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) throw new NotFoundException('User not found');
 
+    if (id === requesterId) {
+      return {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        profilePicture: user.profilePicture,
+        language: user.language,
+      };
+    }
+
+    return this.toPublicProfile(user);
+  }
+
+  async findByUsername(username: string): Promise<UserPublicProfileDto> {
+    const user = await this.prisma.user.findUnique({ where: { username } });
+    if (!user) throw new NotFoundException('User not found');
+
+    return this.toPublicProfile(user);
+  }
+
+  private toPublicProfile(user: {
+    id: string;
+    username: string;
+    profilePicture: string | null;
+    language: string;
+  }): UserPublicProfileDto {
     return {
+      id: user.id,
       username: user.username,
-      email: user.email,
       profilePicture: user.profilePicture,
+      language: user.language,
     };
   }
 

@@ -40,6 +40,12 @@ export class UsersController {
     return this.usersService.findAll();
   }
 
+  @Get('by-username/:username')
+  @ApiOperation({ summary: 'Get a public user profile by username' })
+  findByUsername(@Param('username') username: string) {
+    return this.usersService.findByUsername(username);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get user profile' })
   findOne(@Param('id') id: string, @CurrentUser() user: JwtUser) {

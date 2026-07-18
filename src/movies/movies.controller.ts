@@ -234,6 +234,41 @@ export class MoviesController {
     );
   }
 
+  @Get('favorite')
+  @UseGuards(JwtAuthGuard)
+  listFavorites(@CurrentUser() user: JwtUser) {
+    assertUserToken(user);
+    return this.userMoviesService.listFavorites(user.userId);
+  }
+
+  @Post(':movie_id/favorite')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  addToFavorite(
+    @Param('movie_id') movieIdParam: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    assertUserToken(user);
+    return this.userMoviesService.addToFavorite(
+      user.userId,
+      parsePositiveInt(movieIdParam, 'Invalid movie id'),
+    );
+  }
+
+  @Delete(':movie_id/favorite')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  removeFromFavorite(
+    @Param('movie_id') movieIdParam: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    assertUserToken(user);
+    return this.userMoviesService.removeFromFavorite(
+      user.userId,
+      parsePositiveInt(movieIdParam, 'Invalid movie id'),
+    );
+  }
+
   @Get('watched')
   @UseGuards(JwtAuthGuard)
   listWatched(@CurrentUser() user: JwtUser) {

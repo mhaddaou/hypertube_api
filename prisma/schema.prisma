@@ -138,6 +138,9 @@ model UserMovie {
   // When present, the user wants to watch this movie later
   watchlistedAt DateTime?
 
+  // When present, the user has marked this movie as a favorite
+  favoritedAt DateTime?
+
   // When present, the user has watched this movie
   watchedAt DateTime?
 
@@ -169,6 +172,7 @@ model UserMovie {
 
   @@unique([userId, movieId])
   @@index([userId, watchlistedAt])
+  @@index([userId, favoritedAt])
   @@index([userId, watchedAt])
   @@index([userId, playbackUpdatedAt])
 }

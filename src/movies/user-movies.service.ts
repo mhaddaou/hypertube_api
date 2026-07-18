@@ -5,6 +5,7 @@ import { MoviesService } from './movies.service';
 export interface UserMovieResponse {
   movie_id: number;
   watchlisted_at: Date | null;
+  favorited_at: Date | null;
   watched_at: Date | null;
   movie: UserMovieSnapshot | null;
 }
@@ -25,6 +26,7 @@ export interface UserMovieSnapshot {
 interface UserMovieRow {
   movieId: number;
   watchlistedAt: Date | null;
+  favoritedAt: Date | null;
   watchedAt: Date | null;
   title: string | null;
   year: number | null;
@@ -72,6 +74,18 @@ export class UserMoviesService {
     return rows.map((row) => this.toResponse(row));
   }
 
+  async listFavorites(userId: string): Promise<UserMovieResponse[]> {
+    const rows = await this.prisma.userMovie.findMany({
+      where: {
+        userId,
+        favoritedAt: { not: null },
+      },
+      orderBy: { favoritedAt: 'desc' },
+    });
+
+    return rows.map((row) => this.toResponse(row));
+  }
+
   async listWatched(userId: string): Promise<UserMovieResponse[]> {
     const rows = await this.prisma.userMovie.findMany({
       where: {
@@ -110,26 +124,36 @@ export class UserMoviesService {
     userId: string,
     movieId: number,
   ): Promise<UserMovieResponse> {
-    const row = await this.prisma.userMovie.findUnique({
+    return this.clearFlag(userId, movieId, 'watchlistedAt');
+  }
+
+  async addToFavorite(
+    userId: string,
+    movieId: number,
+  ): Promise<UserMovieResponse> {
+    const snapshot = await this.fetchSnapshot(movieId);
+    const row = await this.prisma.userMovie.upsert({
       where: { userId_movieId: { userId, movieId } },
+      update: {
+        ...snapshot,
+        favoritedAt: new Date(),
+      },
+      create: {
+        userId,
+        movieId,
+        ...snapshot,
+        favoritedAt: new Date(),
+      },
     });
 
-    if (!row) {
-      return emptyResponse(movieId);
-    }
+    return this.toResponse(row);
+  }
 
-    if (row.watchedAt === null) {
-      await this.prisma.userMovie.delete({
-        where: { userId_movieId: { userId, movieId } },
-      });
-      return emptyResponse(movieId);
-    }
-
-    const updated = await this.prisma.userMovie.update({
-      where: { userId_movieId: { userId, movieId } },
-      data: { watchlistedAt: null },
-    });
-    return this.toResponse(updated);
+  async removeFromFavorite(
+    userId: string,
+    movieId: number,
+  ): Promise<UserMovieResponse> {
+    return this.clearFlag(userId, movieId, 'favoritedAt');
   }
 
   async markWatched(
@@ -159,6 +183,14 @@ export class UserMoviesService {
     userId: string,
     movieId: number,
   ): Promise<UserMovieResponse> {
+    return this.clearFlag(userId, movieId, 'watchedAt');
+  }
+
+  private async clearFlag(
+    userId: string,
+    movieId: number,
+    field: 'watchlistedAt' | 'favoritedAt' | 'watchedAt',
+  ): Promise<UserMovieResponse> {
     const row = await this.prisma.userMovie.findUnique({
       where: { userId_movieId: { userId, movieId } },
     });
@@ -167,7 +199,11 @@ export class UserMoviesService {
       return emptyResponse(movieId);
     }
 
-    if (row.watchlistedAt === null) {
+    const otherFlagsSet = (
+      ['watchlistedAt', 'favoritedAt', 'watchedAt'] as const
+    ).some((otherField) => otherField !== field && row[otherField] !== null);
+
+    if (!otherFlagsSet) {
       await this.prisma.userMovie.delete({
         where: { userId_movieId: { userId, movieId } },
       });
@@ -176,7 +212,7 @@ export class UserMoviesService {
 
     const updated = await this.prisma.userMovie.update({
       where: { userId_movieId: { userId, movieId } },
-      data: { watchedAt: null },
+      data: { [field]: null },
     });
     return this.toResponse(updated);
   }
@@ -200,6 +236,7 @@ export class UserMoviesService {
     return {
       movie_id: row.movieId,
       watchlisted_at: row.watchlistedAt,
+      favorited_at: row.favoritedAt,
       watched_at: row.watchedAt,
       movie: {
         id: row.movieId,
@@ -221,6 +258,7 @@ function emptyResponse(movieId: number): UserMovieResponse {
   return {
     movie_id: movieId,
     watchlisted_at: null,
+    favorited_at: null,
     watched_at: null,
     movie: null,
   };
