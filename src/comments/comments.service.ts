@@ -57,6 +57,42 @@ export class CommentsService {
     return mapComment(created);
   }
 
+  async update(
+    id: string,
+    userId: string,
+    comment: string,
+  ): Promise<CommentResponse> {
+    const content = comment.trim();
+    if (!content) {
+      throw new BadRequestException('Comment cannot be empty');
+    }
+
+    const existing = await this.prisma.comment.findUnique({
+      where: { id },
+      select: { userId: true },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('Comment not found');
+    }
+
+    if (existing.userId !== userId) {
+      throw new ForbiddenException('You can only edit your own comments');
+    }
+
+    const updated = await this.prisma.comment.update({
+      where: { id },
+      data: { content },
+      include: {
+        user: {
+          select: { username: true, profilePicture: true },
+        },
+      },
+    });
+
+    return mapComment(updated);
+  }
+
   async delete(id: string, userId: string): Promise<void> {
     const comment = await this.prisma.comment.findUnique({
       where: { id },

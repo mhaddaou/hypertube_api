@@ -8,12 +8,12 @@ export class UserListItemDto {
 export class UserPublicProfileDto {
   @ApiProperty() id: string;
   @ApiProperty() username: string;
+  @ApiProperty() firstName: string;
+  @ApiProperty() lastName: string;
   @ApiPropertyOptional() profilePicture: string | null;
   @ApiProperty() language: string;
 }
 
 export class UserOwnProfileDto extends UserPublicProfileDto {
   @ApiProperty() email: string;
-  @ApiProperty() firstName: string;
-  @ApiProperty() lastName: string;
 }

@@ -6,6 +6,7 @@ import {
   Get,
   HttpCode,
   Param,
+  Patch,
   Post,
   Query,
   UnauthorizedException,
@@ -17,6 +18,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { CommentsService } from './comments.service.js';
 import { CreateCommentDto } from './dto/create-comment.dto.js';
 import { CreateMovieCommentDto } from './dto/create-movie-comment.dto.js';
+import { UpdateCommentDto } from './dto/update-comment.dto.js';
 
 interface JwtUser {
   userId: string;
@@ -49,6 +51,19 @@ export class CommentsController {
     assertUserToken(user);
     const movieId = parsePositiveInt(movieIdParam, 'Invalid movie id');
     return this.commentsService.create(user.userId, movieId, dto.comment);
+  }
+
+  @Patch('comments/:id')
+  @UseGuards(JwtAuthGuard)
+  @ApiSecurity('access-token')
+  @ApiOperation({ summary: 'Edit one of your comments' })
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateCommentDto,
+    @CurrentUser() user: JwtUser,
+  ) {
+    assertUserToken(user);
+    return this.commentsService.update(id, user.userId, dto.comment);
   }
 
   @Delete('comments/:id')

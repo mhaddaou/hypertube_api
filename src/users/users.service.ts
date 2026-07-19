@@ -53,12 +53,16 @@ export class UsersService {
   private toPublicProfile(user: {
     id: string;
     username: string;
+    firstName: string;
+    lastName: string;
     profilePicture: string | null;
     language: string;
   }): UserPublicProfileDto {
     return {
       id: user.id,
       username: user.username,
+      firstName: user.firstName,
+      lastName: user.lastName,
       profilePicture: user.profilePicture,
       language: user.language,
     };
